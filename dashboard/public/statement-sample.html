@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>거래명세표 (엔타스/엔타스프레쉬미트/엔타스에스디/퍼시픽스타 양식)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 48px 24px;
+      font-family: 'Malgun Gothic', '맑은 고딕', Apple SD Gothic Neo, sans-serif;
+      font-size: 14px;
+      color: #1a1a1a;
+      line-height: 1.5;
+      background: #f8fafc;
+    }
+    .sheet {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 48px 40px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      border-radius: 2px;
+    }
+    .title {
+      text-align: center;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin: 0 0 32px;
+      color: #0f172a;
+    }
+    .meta {
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .meta .date { font-size: 14px; color: #64748b; margin-bottom: 6px; }
+    .meta .recipient { font-size: 16px; font-weight: 600; color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      padding: 12px 8px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 13px;
+      color: #334155;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-bottom: 2px solid #cbd5e1;
+    }
+    tbody td {
+      padding: 10px 8px;
+      border: 1px solid #e2e8f0;
+      vertical-align: middle;
+    }
+    tbody tr:hover { background: #fafafa; }
+    .col-month { width: 6%; text-align: center; }
+    .col-day { width: 6%; text-align: center; }
+    .col-item { width: 19%; padding-left: 10px; }
+    .col-requester { width: 14%; padding-left: 10px; }
+    .col-location { width: 17%; padding-left: 10px; }
+    .col-qty { width: 8%; text-align: right; padding-right: 10px; }
+    .col-supply { width: 11%; text-align: right; padding-right: 10px; }
+    .col-tax { width: 6%; text-align: right; padding-right: 8px; }
+    .col-amount { width: 12%; text-align: right; padding-right: 10px; font-weight: 500; }
+    .num { font-variant-numeric: tabular-nums; }
+    .total-row td {
+      padding: 12px 8px;
+      font-weight: 700;
+      background: #f8fafc;
+      border-top: 2px solid #cbd5e1;
+      border-bottom: 1px solid #e2e8f0;
+      color: #0f172a;
+    }
+    .total-row .col-item { text-align: center; padding-left: 0; }
+    .empty-row td { height: 36px; border-color: #e2e8f0; }
+    .empty-row:hover { background: transparent; }
+    @media print {
+      body { background: #fff; padding: 24px; }
+      .sheet { box-shadow: none; padding: 0; }
+      tbody tr:hover { background: transparent; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <h1 class="title">거래명세표</h1>
+    <div class="meta">
+      <div class="date">2026년 02월 28일</div>
+      <div class="recipient">ENTAS 편예슬 님</div>
+    </div>
+    <!-- 엔타스, 엔타스프레쉬미트, 엔타스에스디, 퍼시픽스타 양식: 요청인=받는이, 품목=경조+지점명, 세액=0 -->
+    <table>
+      <thead>
+        <tr>
+          <th class="col-month">월</th>
+          <th class="col-day">일</th>
+          <th class="col-item">품목</th>
+          <th class="col-requester">요청인</th>
+          <th class="col-location">발송 장소</th>
+          <th class="col-qty">수량</th>
+          <th class="col-supply">공급가액</th>
+          <th class="col-tax">세액</th>
+          <th class="col-amount">금액</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-month num">2</td>
+          <td class="col-day num">3</td>
+          <td class="col-item">경조 동탄 경복궁</td>
+          <td class="col-requester">이예숙</td>
+          <td class="col-location">인천길병원</td>
+          <td class="col-qty num">1</td>
+          <td class="col-supply num">90,000</td>
+          <td class="col-tax num">0</td>
+          <td class="col-amount num">90,000</td>
+        </tr>
+        <tr>
+          <td class="col-month num">2</td>
+          <td class="col-day num">7</td>
+          <td class="col-item">경조 청주 경복궁</td>
+          <td class="col-requester">신숙영</td>
+          <td class="col-location">공주장례식장</td>
+          <td class="col-qty num">1</td>
+          <td class="col-supply num">90,000</td>
+          <td class="col-tax num">0</td>
+          <td class="col-amount num">90,000</td>
+        </tr>
+        <tr>
+          <td class="col-month num">2</td>
+          <td class="col-day num">8</td>
+          <td class="col-item">경조 수원 삿뽀로</td>
+          <td class="col-requester">박기숙</td>
+          <td class="col-location">당진중앙장례식장</td>
+          <td class="col-qty num">1</td>
+          <td class="col-supply num">90,000</td>
+          <td class="col-tax num">0</td>
+          <td class="col-amount num">90,000</td>
+        </tr>
+        <tr>
+          <td class="col-month num">2</td>
+          <td class="col-day num">18</td>
+          <td class="col-item">경조 사당 팔진향</td>
+          <td class="col-requester">배솔희</td>
+          <td class="col-location">세림병원장례식장</td>
+          <td class="col-qty num">1</td>
+          <td class="col-supply num">90,000</td>
+          <td class="col-tax num">0</td>
+          <td class="col-amount num">90,000</td>
+        </tr>
+        <tr>
+          <td class="col-month num">2</td>
+          <td class="col-day num">18</td>
+          <td class="col-item">경조 본사</td>
+          <td class="col-requester">김미애 대표님</td>
+          <td class="col-location">서울대병원장례식장</td>
+          <td class="col-qty num">1</td>
+          <td class="col-supply num">90,000</td>
+          <td class="col-tax num">0</td>
+          <td class="col-amount num">90,000</td>
+        </tr>
+        <tr>
+          <td class="col-month num">2</td>
+          <td class="col-day num">28</td>
+          <td class="col-item">경조 도곡 경복궁</td>
+          <td class="col-requester">홍주희</td>
+          <td class="col-location">오션스위츠제주호텔</td>
+          <td class="col-qty num">1</td>
+          <td class="col-supply num">90,000</td>
+          <td class="col-tax num">0</td>
+          <td class="col-amount num">90,000</td>
+        </tr>
+        <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr class="total-row">
+          <td colspan="5" class="col-item">계</td>
+          <td class="col-qty num">6</td>
+          <td class="col-supply num">540,000</td>
+          <td class="col-tax num">0</td>
+          <td class="col-amount num">540,000</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

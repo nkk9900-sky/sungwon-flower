@@ -1,0 +1,10 @@
+# 환경 변수 (Supabase 키 - 절대 커밋 금지)
+.env
+.env.local
+.env.*.local
+
+# 빌드
+dist
+node_modules
+
+*.log

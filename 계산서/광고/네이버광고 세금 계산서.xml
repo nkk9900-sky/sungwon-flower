@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><TaxInvoice xmlns="urn:kr:or:kec:standard:Tax:ReusableAggregateBusinessInformationEntitySchemaModule:1:0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:kr:or:kec:standard:Tax:ReusableAggregateBusinessInformationEntitySchemaModule:1:0 http://www.kec.or.kr/standard/Tax/TaxInvoiceSchemaModule_1.0.xsd">
+<ExchangedDocument>
+<IssueDateTime>20230603175350</IssueDateTime>
+</ExchangedDocument>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+<ds:SignedInfo>
+<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+<ds:Reference URI="">
+<ds:Transforms>
+<ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+<ds:Transform Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">
+<ds:XPath>not(self::*[name() = 'TaxInvoice'] | ancestor-or-self::*[name() = 'ExchangedDocument'] | ancestor-or-self::ds:Signature)</ds:XPath>
+</ds:Transform>
+</ds:Transforms>
+<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+<ds:DigestValue>6rnKih2y+0qub667Q7IU0MAt7nh1SFw3yLTNUKXpkDk=</ds:DigestValue>
+</ds:Reference>
+</ds:SignedInfo>
+<ds:SignatureValue>yay9YCYvj+BQHj1NeQtfSLlf4HEjhikv2oJaBxLaB28GbrNUQTA12lbgfh1WOt3u9Dgg5Mz31Jqx2NDgHkwGYa81t+MU97kTLxz/Nc44yRsjv8Z5kVihsMQDzuxvdJqFs8T9psWNLgGyY7t6odBD/ImYsH/Eq/9GaVlDwuYB2m/62a/9UOGpuTAKEz6O8hTqQ+obLHL4EFNFy6qv7LrovMK4+s63a2DiAg3P+W1Xq58O9OjcY9h6+H6Uam1XhaZB+jFISShZ0CXVuU/0dWZq840GrFt7yN3UxLCaYdbVs2ZUQdVq74E+prKwkLqX2wUYQbQf40a8T86h9uuddVGYXQ==</ds:SignatureValue>
+<ds:KeyInfo>
+<ds:KeyValue>
+<ds:RSAKeyValue>
+<ds:Modulus>
+zaYbJ2L/vvawOb5/6f142C+tGaVMpDOPssPwrydmXaAjwDprvlrkFbfspjEo7jfTlFO/rZysjMlq
+PjpFA/WPYS253Mx+rZPkYcPObrlLEqmriaCwZbLC6I0ygCBaDkZWGaX3+BhGEfrgfdzcOEQuepNU
+CVLTmufquABF9qvaHue8W/wwKtxSH8ED6Ay3wXvGbzDWMLmM/927LyWWc3u1YOwlhR3QIxWOpbcp
+EedSlYlp2s+16M0f2kEONDLHwS3EVJ8XPVdJs6xb7SdGUGCqZktlrGBaAQI7KHOyvEhosz7zD3iW
+WUf4J6gtB/SxV72RqgvltI7q5DuzyeXZ5mLt+w==
+</ds:Modulus>
+<ds:Exponent>AQAB</ds:Exponent>
+</ds:RSAKeyValue>
+</ds:KeyValue>
+<ds:X509Data>
+<ds:X509Certificate>
+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
+ab9XYpEM7FdZASQRbloUvehme0DP7lDwNw==
+</ds:X509Certificate>
+</ds:X509Data>
+</ds:KeyInfo>
+</ds:Signature><TaxInvoiceDocument>
+<IssueID>202305314200019152844277</IssueID>
+<TypeCode>0101</TypeCode>
+<DescriptionText>buddysky:naver</DescriptionText>
+<IssueDateTime>20230531</IssueDateTime>
+<PurposeCode>01</PurposeCode>
+</TaxInvoiceDocument>
+<TaxInvoiceTradeSettlement>
+<InvoicerParty>
+<ID>2208162517</ID>
+<TypeCode>서비스업</TypeCode>
+<NameText>네이버 주식회사</NameText>
+<ClassificationCode>온라인정보제공업</ClassificationCode>
+<SpecifiedPerson>
+<NameText>최수연</NameText>
+</SpecifiedPerson>
+<DefinedContact>
+<PersonNameText>네이버 주식회사</PersonNameText>
+<TelephoneCommunication>1588-5896</TelephoneCommunication>
+<URICommunication>sa_cc_taxinvoice@navercorp.com</URICommunication>
+</DefinedContact>
+<SpecifiedAddress>
+<LineOneText>경기도 성남시 분당구 정자일로 95(정자동, 네이버 1784)</LineOneText>
+</SpecifiedAddress>
+</InvoicerParty>
+<InvoiceeParty>
+<ID>8719801636</ID>
+<TypeCode>운수 및 창고업</TypeCode>
+<NameText>성원플라워</NameText>
+<ClassificationCode>늘찬 배달업</ClassificationCode>
+<SpecifiedOrganization>
+<BusinessTypeCode>01</BusinessTypeCode>
+</SpecifiedOrganization>
+<SpecifiedPerson>
+<NameText>원혜빈</NameText>
+</SpecifiedPerson>
+<PrimaryDefinedContact>
+<PersonNameText>성광영</PersonNameText>
+<TelephoneCommunication>010-6204-1807</TelephoneCommunication>
+<URICommunication>buddysky@naver.com</URICommunication>
+</PrimaryDefinedContact>
+<SpecifiedAddress>
+<LineOneText>서울특별시 강동구 고덕동 688 래미안힐스테이트고덕 1동 2층 226</LineOneText>
+</SpecifiedAddress>
+</InvoiceeParty>
+<SpecifiedPaymentMeans>
+<TypeCode>10</TypeCode>
+</SpecifiedPaymentMeans>
+<SpecifiedMonetarySummation>
+<ChargeTotalAmount>280</ChargeTotalAmount>
+<TaxTotalAmount>28</TaxTotalAmount>
+<GrandTotalAmount>308</GrandTotalAmount>
+</SpecifiedMonetarySummation>
+</TaxInvoiceTradeSettlement>
+<TaxInvoiceTradeLineItem>
+<SequenceNumeric>1</SequenceNumeric>
+<InvoiceAmount>280</InvoiceAmount>
+<NameText>네이버 검색광고_사이트검색광고</NameText>
+<PurchaseExpiryDateTime>20230531</PurchaseExpiryDateTime>
+<TotalTax>
+<CalculatedAmount>28</CalculatedAmount>
+</TotalTax>
+</TaxInvoiceTradeLineItem>
+</TaxInvoice>
