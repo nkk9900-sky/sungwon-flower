@@ -1259,7 +1259,11 @@ export default function App() {
       orderer_phone: form.ordererPhone.trim() || null,
     }
     if (selectedOrderId) {
-      const { error: updateError } = await supabase.from('orders').update(payload).eq('id', selectedOrderId)
+      const currentRow = filteredOrders.find((o) => o.id === selectedOrderId)
+      const updatePayload = currentRow
+        ? { ...payload, partner_rating: currentRow.partner_rating, partner_reason: currentRow.partner_reason ?? null, delivery_photo: currentRow.delivery_photo ?? null, delivery_photo_2: currentRow.delivery_photo_2 ?? null }
+        : payload
+      const { error: updateError } = await supabase.from('orders').update(updatePayload).eq('id', selectedOrderId)
       if (updateError) {
         setSubmitError(updateError.message)
         setSubmitStatus('error')
