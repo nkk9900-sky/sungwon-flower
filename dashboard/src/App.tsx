@@ -1053,17 +1053,20 @@ export default function App() {
   }, [searchRegion, regionList])
 
   const filteredOrders = useMemo(() => {
-    if (!searchCondition) return orders
+    let list = orders
     if (searchCondition === 'client' && searchClient.trim()) {
-      return orders.filter((o) => (o.client ?? '').trim() === searchClient.trim())
+      list = orders.filter((o) => (o.client ?? '').trim() === searchClient.trim())
+    } else if (searchCondition === 'location' && searchLocation.trim()) {
+      list = orders.filter((o) => (o.location ?? '').trim() === searchLocation.trim())
+    } else if (searchCondition === 'region' && searchRegion.trim()) {
+      list = orders.filter((o) => (o.region ?? '').trim() === searchRegion.trim())
     }
-    if (searchCondition === 'location' && searchLocation.trim()) {
-      return orders.filter((o) => (o.location ?? '').trim() === searchLocation.trim())
-    }
-    if (searchCondition === 'region' && searchRegion.trim()) {
-      return orders.filter((o) => (o.region ?? '').trim() === searchRegion.trim())
-    }
-    return orders
+    // 최근(배송일·등록순)이 맨 위로
+    return [...list].sort((a, b) => {
+      const byDate = (b.date || '').localeCompare(a.date || '')
+      if (byDate !== 0) return byDate
+      return (b.id || '').localeCompare(a.id || '')
+    })
   }, [orders, searchCondition, searchClient, searchLocation, searchRegion])
 
   const clientSummary = useMemo(() => {
