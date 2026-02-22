@@ -1968,10 +1968,10 @@ export default function App() {
                       <td style={afterStyle}>
                         <input type="text" value={draft.partnerReason} onChange={(e) => setRowUpdate(row, { partnerReason: e.target.value })} placeholder="사유 입력" style={{ ...cellInputStyle, maxWidth: '100%' }} title="평점 사유" />
                       </td>
-                      <td style={{ ...afterStyle, width: 293, maxWidth: 293 }}>
-                        <div style={{ display: 'flex', flexDirection: 'row', gap: 8 }}>
+                      <td style={{ ...afterStyle, width: 293, maxWidth: 293, overflow: 'visible' }}>
+                        <div style={{ display: 'flex', flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                           <div
-                            style={{ flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 }}
+                            style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}
                             onPasteCapture={(e) => {
                               const dt = e.clipboardData
                               if (!dt || !dt.items) return
@@ -1990,21 +1990,20 @@ export default function App() {
                             }}
                             title="캡처 후 이 칸에서 Ctrl+V"
                           >
-                            <span style={{ fontSize: 10, color: '#64748b', flexShrink: 0 }}>1</span>
-                            <label style={{ flexShrink: 0, fontSize: 10, padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', background: '#f8fafc' }}>
-                              파일
-                              <input type="file" accept="image/*" onChange={(e) => setRowUpdate(row, { photoFile: e.target.files?.[0] ?? null })} style={{ position: 'absolute', width: 0, height: 0, opacity: 0 }} title="배송 사진 1" />
-                            </label>
-                            <input type="text" value={draft.deliveryPhotoUrl} onChange={(e) => setRowUpdate(row, { deliveryPhotoUrl: e.target.value })} placeholder="URL" style={{ ...cellInputStyle, flex: 1, minWidth: 60, padding: '4px 4px' }} />
-                            {draft.photoFile && (
-                              <><span style={{ fontSize: 10, color: '#047857' }}>첨부</span><button type="button" onClick={() => openPhotoPreview(draft.photoFile!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button></>
-                            )}
-                            {!draft.photoFile && (draft.deliveryPhotoUrl?.trim() || row.delivery_photo) && (
-                              <button type="button" onClick={() => openPhotoPreview((draft.deliveryPhotoUrl?.trim() || row.delivery_photo)!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button>
+                            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <span style={{ fontSize: 10, color: '#64748b', flexShrink: 0 }}>1</span>
+                              <label style={{ flexShrink: 0, fontSize: 10, padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', background: '#f8fafc' }}>
+                                파일
+                                <input type="file" accept="image/*" onChange={(e) => setRowUpdate(row, { photoFile: e.target.files?.[0] ?? null })} style={{ position: 'absolute', width: 0, height: 0, opacity: 0 }} title="배송 사진 1" />
+                              </label>
+                              <input type="text" value={draft.deliveryPhotoUrl} onChange={(e) => setRowUpdate(row, { deliveryPhotoUrl: e.target.value })} placeholder="URL" style={{ ...cellInputStyle, flex: 1, minWidth: 60, padding: '4px 4px' }} />
+                            </div>
+                            {(draft.photoFile || draft.deliveryPhotoUrl?.trim() || row.delivery_photo) && (
+                              <button type="button" onClick={() => draft.photoFile ? openPhotoPreview(draft.photoFile) : openPhotoPreview((draft.deliveryPhotoUrl?.trim() || row.delivery_photo)!)} style={{ alignSelf: 'flex-start', fontSize: 10, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', lineHeight: 1 }}>보기</button>
                             )}
                           </div>
                           <div
-                            style={{ flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 }}
+                            style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}
                             onPasteCapture={(e) => {
                               const dt = e.clipboardData
                               if (!dt || !dt.items) return
@@ -2023,17 +2022,16 @@ export default function App() {
                             }}
                             title="캡처 후 이 칸에서 Ctrl+V"
                           >
-                            <span style={{ fontSize: 10, color: '#64748b', flexShrink: 0 }}>2</span>
-                            <label style={{ flexShrink: 0, fontSize: 10, padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', background: '#f8fafc' }}>
-                              파일
-                              <input type="file" accept="image/*" onChange={(e) => setRowUpdate(row, { photoFile2: e.target.files?.[0] ?? null })} style={{ position: 'absolute', width: 0, height: 0, opacity: 0 }} title="배송 사진 2" />
-                            </label>
-                            <input type="text" value={draft.deliveryPhotoUrl2} onChange={(e) => setRowUpdate(row, { deliveryPhotoUrl2: e.target.value })} placeholder="URL" style={{ ...cellInputStyle, flex: 1, minWidth: 60, padding: '4px 4px' }} />
-                            {draft.photoFile2 && (
-                              <><span style={{ fontSize: 10, color: '#047857' }}>첨부</span><button type="button" onClick={() => openPhotoPreview(draft.photoFile2!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button></>
-                            )}
-                            {!draft.photoFile2 && (draft.deliveryPhotoUrl2?.trim() || row.delivery_photo_2) && (
-                              <button type="button" onClick={() => openPhotoPreview((draft.deliveryPhotoUrl2?.trim() || row.delivery_photo_2)!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button>
+                            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <span style={{ fontSize: 10, color: '#64748b', flexShrink: 0 }}>2</span>
+                              <label style={{ flexShrink: 0, fontSize: 10, padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', background: '#f8fafc' }}>
+                                파일
+                                <input type="file" accept="image/*" onChange={(e) => setRowUpdate(row, { photoFile2: e.target.files?.[0] ?? null })} style={{ position: 'absolute', width: 0, height: 0, opacity: 0 }} title="배송 사진 2" />
+                              </label>
+                              <input type="text" value={draft.deliveryPhotoUrl2} onChange={(e) => setRowUpdate(row, { deliveryPhotoUrl2: e.target.value })} placeholder="URL" style={{ ...cellInputStyle, flex: 1, minWidth: 60, padding: '4px 4px' }} />
+                            </div>
+                            {(draft.photoFile2 || draft.deliveryPhotoUrl2?.trim() || row.delivery_photo_2) && (
+                              <button type="button" onClick={() => draft.photoFile2 ? openPhotoPreview(draft.photoFile2) : openPhotoPreview((draft.deliveryPhotoUrl2?.trim() || row.delivery_photo_2)!)} style={{ alignSelf: 'flex-start', fontSize: 10, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', lineHeight: 1 }}>보기</button>
                             )}
                           </div>
                         </div>
