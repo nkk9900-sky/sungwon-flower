@@ -442,6 +442,8 @@ const emptyForm = {
   price: '',
   cost: '',
   quantity: '1',
+  orderer: '',
+  ordererPhone: '',
 }
 
 type RowDraft = {
@@ -1090,6 +1092,21 @@ export default function App() {
     ).slice(0, 20)
   }, [contactClientInput, clientList])
 
+  // 같은 매장명이면 마지막으로 입력했던 주문자/연락처 (날짜 최신 순)
+  const lastOrdererByBranch = useMemo(() => {
+    const map: Record<string, { orderer_name: string; orderer_phone: string }> = {}
+    const sorted = [...orders].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    for (const o of sorted) {
+      const branch = (o.branch ?? '').trim()
+      if (!branch) continue
+      if (map[branch]) continue
+      const name = (o.orderer_name ?? '').trim()
+      const phone = (o.orderer_phone ?? '').trim()
+      if (name || phone) map[branch] = { orderer_name: name, orderer_phone: phone }
+    }
+    return map
+  }, [orders])
+
   const updateForm = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }))
 
   const setRowUpdate = (row: Order, patch: Partial<RowDraft>) => {
@@ -1163,6 +1180,8 @@ export default function App() {
       price: row.price != null ? String(row.price) : '',
       cost: row.cost != null ? String(row.cost) : '',
       quantity: row.quantity != null ? String(row.quantity) : '1',
+      orderer: row.orderer_name ?? '',
+      ordererPhone: row.orderer_phone ?? '',
     })
   }
 
@@ -1220,6 +1239,8 @@ export default function App() {
       cost: costNum,
       profit,
       quantity: form.quantity === '' ? 1 : Number(form.quantity),
+      orderer_name: form.orderer.trim() || null,
+      orderer_phone: form.ordererPhone.trim() || null,
     }
     if (selectedOrderId) {
       const { error: updateError } = await supabase.from('orders').update(payload).eq('id', selectedOrderId)
@@ -1450,7 +1471,18 @@ export default function App() {
                 value={form.branch}
                 onChange={(e) => { updateForm('branch', e.target.value); setBranchDropdownOpen(true); }}
                 onFocus={() => setBranchDropdownOpen(true)}
-                onBlur={() => setTimeout(() => setBranchDropdownOpen(false), 150)}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setBranchDropdownOpen(false)
+                    setForm((f) => {
+                      const branch = (branchInputRef.current?.value ?? f.branch).trim()
+                      if (!branch || f.orderer || f.ordererPhone) return f
+                      const prev = lastOrdererByBranch[branch]
+                      if (prev) return { ...f, orderer: prev.orderer_name, ordererPhone: prev.orderer_phone }
+                      return f
+                    })
+                  }, 150)
+                }}
                 onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                 placeholder="매장명 입력·초성 검색" style={inputStyle}
               />
@@ -1461,7 +1493,13 @@ export default function App() {
                       key={row.store_name}
                       onMouseDown={(e) => {
                         e.preventDefault()
-                        setForm((f) => ({ ...f, branch: row.store_name, client: row.client_name }))
+                        const prev = lastOrdererByBranch[row.store_name]
+                        setForm((f) => ({
+                          ...f,
+                          branch: row.store_name,
+                          client: row.client_name,
+                          ...(prev ? { orderer: prev.orderer_name, ordererPhone: prev.orderer_phone } : {}),
+                        }))
                         setBranchDropdownOpen(false)
                         branchInputRef.current?.blur()
                       }}
@@ -1554,6 +1592,14 @@ export default function App() {
                 선택 해제
               </button>
             )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, whiteSpace: 'nowrap' }}>주문자</span>
+              <input type="text" value={form.orderer} onChange={(e) => updateForm('orderer', e.target.value)} placeholder="주문자" style={{ ...inputStyle, width: 100, minWidth: 80 }} />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, whiteSpace: 'nowrap' }}>연락처</span>
+              <input type="text" value={form.ordererPhone} onChange={(e) => updateForm('ordererPhone', e.target.value)} placeholder="연락처" style={{ ...inputStyle, width: 120, minWidth: 100 }} />
+            </label>
             {submitStatus === 'ok' && <span style={{ color: '#059669', fontSize: 14 }}>등록되었습니다.</span>}
             {submitStatus === 'error' && submitError && <span style={{ color: '#dc2626', fontSize: 14 }}>{submitError}</span>}
           </div>

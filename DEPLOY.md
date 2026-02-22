@@ -59,3 +59,22 @@ git push -u origin main
 
 배포 시 사용하는 값은 **dashboard** 폴더의 `.env`와 동일하게 맞추면 됩니다.  
 로컬 `.env`는 Git에 올라가지 않으므로, Vercel 대시보드에서만 위 두 변수를 설정하면 됩니다.
+
+---
+
+## 5. 배포 후 에러 해결
+
+### "Supabase 설정이 없습니다" 또는 화면이 비어 있음
+- **Vercel** → 해당 프로젝트 → **Settings** → **Environment Variables**
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` 가 **모두** 설정되어 있는지 확인
+- 값 수정 후 **Redeploy** (Deployments → ⋮ → Redeploy)
+
+### "client_contacts 테이블이 없습니다" / relation does not exist
+- Vercel에서 쓰는 **Supabase 프로젝트**와 로컬에서 쓰는 프로젝트가 같은지 확인
+- **Supabase 대시보드** → **SQL Editor**에서 아래 스크립트들을 **배포에 사용하는 프로젝트**에 순서대로 실행하세요.
+  - `dashboard/supabase-client-contacts.sql` (거래처 담당자)
+  - 그 외 필요한 테이블: `orders`, `store_client_map`, `provider_balances`, `client_statement_format` 등 (루트의 `supabase-schema.sql` 또는 각 `dashboard/supabase-*.sql` 참고)
+
+### 주문 목록이 안 뜨거나 네트워크 에러
+- Supabase **Settings** → **API** 에서 **Project URL**과 **anon public** 키가 Vercel 환경 변수와 동일한지 확인
+- Supabase **Authentication** → **URL Configuration**에서 **Site URL**에 Vercel 배포 URL 추가 (필요 시)

@@ -30,5 +30,7 @@ export type Order = {
   cost: number | null
   profit: number | null
   quantity: number | null
+  orderer_name: string | null
+  orderer_phone: string | null
   created_at?: string
 }
