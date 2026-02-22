@@ -88,19 +88,21 @@ function buildStatementHtml(
     .col-day { width: 6%; text-align: center; }
     .col-item { width: 9%; text-align: center; padding-left: 6px; padding-right: 6px; }
     .col-requester { width: 14%; padding-left: 10px; }
-    .col-location { width: 27%; padding-left: 10px; }
-    .col-qty { width: 8%; text-align: right; padding-right: 10px; }
+    .col-location { width: 27%; padding-left: 10px; text-align: center; }
+    .col-qty { width: 8%; text-align: center; padding-right: 10px; }
     .col-supply { width: 11%; text-align: right; padding-right: 10px; }
     .col-tax { width: 6%; text-align: right; padding-right: 8px; }
     .col-amount { width: 12%; text-align: right; padding-right: 10px; font-weight: 500; }
+    thead th.col-supply, thead th.col-tax, thead th.col-amount { text-align: center; }
     .num { font-variant-numeric: tabular-nums; }
     .total-row td { padding: 12px 8px; font-weight: 700; background: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 1px solid #e2e8f0; color: #0f172a; }
     .total-row .col-item { text-align: center; padding-left: 0; }
     .empty-row td { height: 36px; border-color: #e2e8f0; }
     .empty-row:hover { background: transparent; }
-    .entas-sheet .col-item { width: 15%; }
-    .entas-sheet .col-requester { width: 14%; }
-    .entas-sheet .col-location { width: 22%; }
+    .entas-sheet .col-item { width: 15%; text-align: center; }
+    .entas-sheet .col-requester { width: 14%; text-align: center; }
+    .entas-sheet .col-location { width: 22%; text-align: center; }
+    .entas-sheet .col-qty { text-align: center; }
     @page { size: A4; margin: 15mm; }
     @media print {
       body { background: #fff; padding: 0; margin: 0; font-size: 12pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
