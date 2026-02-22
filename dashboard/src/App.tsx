@@ -514,6 +514,7 @@ export default function App() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [rowUpdates, setRowUpdates] = useState<Record<string, RowDraft>>({})
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [savedRowId, setSavedRowId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [csvParsedRows, setCsvParsedRows] = useState<CsvOrderRow[] | null>(null)
@@ -565,6 +566,7 @@ export default function App() {
   const locationInputRef = useRef<HTMLInputElement>(null)
   const contactClientInputRef = useRef<HTMLInputElement>(null)
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
+  const [photoPreviewFailed, setPhotoPreviewFailed] = useState(false)
   const [balanceEditOpen, setBalanceEditOpen] = useState(false)
   const [balanceEditForm, setBalanceEditForm] = useState<Record<string, string>>({})
   const [balanceSaving, setBalanceSaving] = useState(false)
@@ -673,6 +675,7 @@ export default function App() {
   }
 
   const openPhotoPreview = (urlOrFile: string | File) => {
+    setPhotoPreviewFailed(false)
     if (typeof urlOrFile === 'string') {
       setPhotoPreviewUrl(urlOrFile)
     } else {
@@ -682,6 +685,7 @@ export default function App() {
   const closePhotoPreview = () => {
     if (photoPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(photoPreviewUrl)
     setPhotoPreviewUrl(null)
+    setPhotoPreviewFailed(false)
   }
 
   const openBalanceEdit = () => {
@@ -1144,6 +1148,9 @@ export default function App() {
       if (!upErr) {
         const { data: urlData } = supabase.storage.from('delivery-photos').getPublicUrl(path)
         photoUrl = urlData.publicUrl
+      } else {
+        alert(`배송사진 1 업로드 실패: ${upErr.message}\n\nSupabase Storage → delivery-photos 버킷의 정책(RLS)에서 anon 업로드를 허용해 주세요.`)
+        if (row.delivery_photo) photoUrl = row.delivery_photo
       }
       if (photoUrl == null && row.delivery_photo) photoUrl = row.delivery_photo
     }
@@ -1156,10 +1163,13 @@ export default function App() {
       if (!upErr) {
         const { data: urlData } = supabase.storage.from('delivery-photos').getPublicUrl(path)
         photoUrl2 = urlData.publicUrl
+      } else {
+        alert(`배송사진 2 업로드 실패: ${upErr.message}\n\nSupabase Storage → delivery-photos 버킷의 정책(RLS)에서 anon 업로드를 허용해 주세요.`)
+        if (row.delivery_photo_2) photoUrl2 = row.delivery_photo_2
       }
       if (photoUrl2 == null && row.delivery_photo_2) photoUrl2 = row.delivery_photo_2
     }
-    const { error: updateErr } = await supabase
+    const { data: updatedRows, error: updateErr } = await supabase
       .from('orders')
       .update({
         partner_rating: draft.partnerRating === '' ? null : Number(draft.partnerRating),
@@ -1168,16 +1178,25 @@ export default function App() {
         delivery_photo_2: photoUrl2,
       })
       .eq('id', row.id)
+      .select('id')
     setUpdatingId(null)
-    if (!updateErr) {
-      setRowUpdates((prev) => {
-        const next = { ...prev }
-        delete next[row.id]
-        return next
-      })
-      refetch()
-      setDataRefreshTrigger((t) => t + 1)
+    if (updateErr) {
+      alert(`저장 실패: ${updateErr.message}\n\nSupabase → SQL Editor에서 dashboard/supabase-한번에-적용.sql 내용을 Run 실행해 주세요.`)
+      return
     }
+    if (!updatedRows?.length) {
+      alert('저장이 DB에 반영되지 않았습니다. (수정된 행 없음)\n\nSupabase → SQL Editor에서 dashboard/supabase-한번에-적용.sql 파일 내용을 붙여넣고 Run 실행해 주세요.')
+      return
+    }
+    setRowUpdates((prev) => {
+      const next = { ...prev }
+      delete next[row.id]
+      return next
+    })
+    setSavedRowId(row.id)
+    setTimeout(() => setSavedRowId(null), 2500)
+    refetch()
+    setDataRefreshTrigger((t) => t + 1)
   }
 
   const loadOrderIntoForm = (row: Order) => {
@@ -1980,8 +1999,8 @@ export default function App() {
                             {draft.photoFile && (
                               <><span style={{ fontSize: 10, color: '#047857' }}>첨부</span><button type="button" onClick={() => openPhotoPreview(draft.photoFile!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button></>
                             )}
-                            {row.delivery_photo && !draft.photoFile && !draft.deliveryPhotoUrl && (
-                              <button type="button" onClick={() => openPhotoPreview(row.delivery_photo!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button>
+                            {!draft.photoFile && (draft.deliveryPhotoUrl?.trim() || row.delivery_photo) && (
+                              <button type="button" onClick={() => openPhotoPreview((draft.deliveryPhotoUrl?.trim() || row.delivery_photo)!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button>
                             )}
                           </div>
                           <div
@@ -2013,8 +2032,8 @@ export default function App() {
                             {draft.photoFile2 && (
                               <><span style={{ fontSize: 10, color: '#047857' }}>첨부</span><button type="button" onClick={() => openPhotoPreview(draft.photoFile2!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button></>
                             )}
-                            {row.delivery_photo_2 && !draft.photoFile2 && !draft.deliveryPhotoUrl2 && (
-                              <button type="button" onClick={() => openPhotoPreview(row.delivery_photo_2!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button>
+                            {!draft.photoFile2 && (draft.deliveryPhotoUrl2?.trim() || row.delivery_photo_2) && (
+                              <button type="button" onClick={() => openPhotoPreview((draft.deliveryPhotoUrl2?.trim() || row.delivery_photo_2)!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button>
                             )}
                           </div>
                         </div>
@@ -2023,6 +2042,7 @@ export default function App() {
                         <button type="button" disabled={updatingId === row.id} onClick={() => handleUpdateOrderRow(row)} style={editBtnStyle} title="저장">
                           {updatingId === row.id ? '저장 중…' : '저장'}
                         </button>
+                        {savedRowId === row.id && <span style={{ marginLeft: 6, fontSize: 12, color: '#047857', fontWeight: 600 }}>저장됨</span>}
                       </td>
                       <td style={tdStyle}>{row.location ?? '-'}</td>
                       <td style={tdStyle}>{row.region ?? '-'}</td>
@@ -2126,12 +2146,20 @@ export default function App() {
           }}
         >
           <button type="button" onClick={closePhotoPreview} style={{ position: 'absolute', top: 16, right: 16, background: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}>닫기</button>
-          <img
-            src={photoPreviewUrl}
-            alt="배송사진 크게 보기"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 4px 24px rgba(0,0,0,0.3)' }}
-          />
+          {photoPreviewFailed && typeof photoPreviewUrl === 'string' && !photoPreviewUrl.startsWith('blob:') ? (
+            <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', padding: 24, borderRadius: 12, maxWidth: 400 }}>
+              <p style={{ margin: '0 0 12px', fontSize: 14, color: '#64748b' }}>미리보기를 불러올 수 없습니다.</p>
+              <a href={photoPreviewUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, color: '#334155', wordBreak: 'break-all' }}>새 탭에서 열기</a>
+            </div>
+          ) : (
+            <img
+              src={photoPreviewUrl ?? ''}
+              alt="배송사진 크게 보기"
+              onClick={(e) => e.stopPropagation()}
+              onError={() => setPhotoPreviewFailed(true)}
+              style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 4px 24px rgba(0,0,0,0.3)' }}
+            />
+          )}
         </div>
       )}
 
