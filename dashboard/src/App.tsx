@@ -1379,12 +1379,12 @@ export default function App() {
         <div style={{ ...cardStyle, minWidth: 200, padding: '14px 20px' }}>
           <h2 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 600 }}>CSV 일괄 등록</h2>
             <input type="file" accept=".csv" onChange={handleCsvFile} style={{ marginBottom: 6, fontSize: 12 }} disabled={csvFileLoading} />
-            {csvFileLoading && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#0f766e' }}>파일 읽는 중…</p>}
-            {csvImportError && <p style={{ margin: '0 0 4px', fontSize: 11, color: csvImportStatus === 'ok' ? '#059669' : '#dc2626' }}>{csvImportError}</p>}
+            {csvFileLoading && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#334155' }}>파일 읽는 중…</p>}
+            {csvImportError && <p style={{ margin: '0 0 4px', fontSize: 11, color: csvImportStatus === 'ok' ? '#047857' : '#dc2626' }}>{csvImportError}</p>}
             {!csvFileLoading && csvParsedRows != null && (
               <>
                 <p style={{ margin: '0 0 4px', fontSize: 13 }}><strong>{csvParsedRows.length}</strong>건 파싱</p>
-                <button type="button" onClick={handleCsvBulkInsert} disabled={csvImportStatus === 'importing'} style={{ padding: '6px 12px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
+                <button type="button" onClick={handleCsvBulkInsert} disabled={csvImportStatus === 'importing'} style={{ padding: '6px 12px', background: '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
                   {csvImportStatus === 'importing' ? '등록 중…' : csvImportStatus === 'ok' ? '완료' : '일괄 등록'}
                 </button>
               </>
@@ -1430,7 +1430,7 @@ export default function App() {
               <button type="button" onClick={openBalanceEdit} style={{ padding: '6px 12px', background: '#e2e8f0', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>월초 충전잔액 수정</button>
             </div>
           </div>
-          {selectedOrderId && <p style={{ margin: '0 0 12px', fontSize: 12, color: '#0f766e' }}>목록에서 선택한 주문을 수정한 뒤 버튼을 누르세요.</p>}
+          {selectedOrderId && <p style={{ margin: '0 0 12px', fontSize: 12, color: '#334155' }}>목록에서 선택한 주문을 수정한 뒤 버튼을 누르세요.</p>}
           <form onSubmit={handleSubmitOrder}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr 0.9fr 0.9fr', gap: 8, marginBottom: 10, width: '100%', minWidth: 0 }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
@@ -1600,7 +1600,7 @@ export default function App() {
               <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, whiteSpace: 'nowrap' }}>연락처</span>
               <input type="text" value={form.ordererPhone} onChange={(e) => updateForm('ordererPhone', e.target.value)} placeholder="연락처" style={{ ...inputStyle, width: 120, minWidth: 100 }} />
             </label>
-            {submitStatus === 'ok' && <span style={{ color: '#059669', fontSize: 14 }}>등록되었습니다.</span>}
+            {submitStatus === 'ok' && <span style={{ color: '#047857', fontSize: 14 }}>등록되었습니다.</span>}
             {submitStatus === 'error' && submitError && <span style={{ color: '#dc2626', fontSize: 14 }}>{submitError}</span>}
           </div>
         </form>
@@ -1615,7 +1615,7 @@ export default function App() {
             </div>
             <div style={cardStyle}>
               <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>검색 기간 수익</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: '#059669' }}>{ordersLoading ? '…' : formatMoney(searchPeriodSummary.profit)}</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#047857' }}>{ordersLoading ? '…' : formatMoney(searchPeriodSummary.profit)}</div>
             </div>
             <div style={cardStyle}>
               <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>검색 기간 주문수</div>
@@ -1629,7 +1629,7 @@ export default function App() {
             </div>
             <div style={cardStyle}>
               <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>전년동월 수익</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: '#059669' }}>{prevYearLoading ? '…' : formatMoney(prevYearSummary.profit)}</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#047857' }}>{prevYearLoading ? '…' : formatMoney(prevYearSummary.profit)}</div>
             </div>
             <div style={cardStyle}>
               <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>전년동월 주문수</div>
@@ -1703,8 +1703,8 @@ export default function App() {
               </div>
             </div>
             {/* 담당자 정보: 항상 아래 공간에 고정 표시. 조회 시 이 영역만 갱신됨. */}
-            <div style={{ width: '100%', marginTop: 8, minHeight: 140, padding: 12, background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#0f766e', marginBottom: 8 }}>담당자 정보</div>
+            <div style={{ width: '100%', marginTop: 8, minHeight: 140, padding: 12, background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 8 }}>담당자 정보</div>
               {!contactClient.trim() ? (
                 <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>거래처를 선택한 뒤 조회를 눌러 주세요.</p>
               ) : contactLoading ? (
@@ -1734,8 +1734,8 @@ export default function App() {
                     <p style={{ margin: '0 0 8px', fontSize: 12, color: '#64748b' }}>등록된 담당자가 없습니다. 신규 등록 시 저장하세요.</p>
                   )}
                   {contactSaveError && <p style={{ margin: '0 0 8px', fontSize: 12, color: '#dc2626' }}>{contactSaveError}</p>}
-                  {contactSaveOk && <p style={{ margin: '0 0 8px', fontSize: 12, color: '#059669' }}>저장되었습니다.</p>}
-                  <button type="button" disabled={contactSaving} onClick={saveClientContact} style={{ padding: '8px 16px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
+                  {contactSaveOk && <p style={{ margin: '0 0 8px', fontSize: 12, color: '#047857' }}>저장되었습니다.</p>}
+                  <button type="button" disabled={contactSaving} onClick={saveClientContact} style={{ padding: '8px 16px', background: '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
                     {contactSaving ? '저장 중…' : '저장'}
                   </button>
                 </>
@@ -1769,7 +1769,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => { setAppliedDateFrom(dateFrom); setAppliedDateTo(dateTo); }}
-            style={{ padding: '8px 20px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+            style={{ padding: '8px 20px', background: '#334155', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
           >
             검색
           </button>
@@ -1846,11 +1846,11 @@ export default function App() {
               </label>
             ))}
             {exportFormat === 'general' && (
-              <span style={{ fontSize: 12, color: searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient) ? '#0f766e' : '#94a3b8' }}>
+              <span style={{ fontSize: 12, color: searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient) ? '#334155' : '#94a3b8' }}>
                 {searchCondition === 'client' && searchClient ? (generalFormatClients.includes(searchClient) ? `거래처: ${searchClient}` : '일반 거래처만 해당. 검색 조건에서 선택 후 검색') : '검색 조건에서 거래처 선택 후 [검색]'}
               </span>
             )}
-            <button type="button" onClick={handleStatementExport} disabled={yellowBalloonExportLoading || statementExportLoading || (exportFormat === 'general' && !(searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient))) || (exportFormat === 'entas_statement' && !(searchCondition === 'client' && ENTAS_CLIENT_SET.has(searchClient)))} style={{ padding: '8px 16px', background: exportFormat === 'general' ? '#475569' : exportFormat === 'yellow_balloon' ? '#0d9488' : '#0f766e', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: yellowBalloonExportLoading || statementExportLoading ? 'wait' : 'pointer', fontWeight: 500 }}>
+            <button type="button" onClick={handleStatementExport} disabled={yellowBalloonExportLoading || statementExportLoading || (exportFormat === 'general' && !(searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient))) || (exportFormat === 'entas_statement' && !(searchCondition === 'client' && ENTAS_CLIENT_SET.has(searchClient)))} style={{ padding: '8px 16px', background: exportFormat === 'general' ? '#475569' : exportFormat === 'yellow_balloon' ? '#0d9488' : '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: yellowBalloonExportLoading || statementExportLoading ? 'wait' : 'pointer', fontWeight: 500 }}>
               {yellowBalloonExportLoading || statementExportLoading ? '생성 중…' : '다운로드'}
             </button>
             <button type="button" onClick={handleSendStatementToContact} disabled={yellowBalloonExportLoading || statementExportLoading || (exportFormat === 'general' && !(searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient))) || (exportFormat === 'entas_statement' && !(searchCondition === 'client' && ENTAS_CLIENT_SET.has(searchClient)))} style={{ padding: '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: yellowBalloonExportLoading || statementExportLoading ? 'wait' : 'pointer', fontWeight: 500 }} title="명세서를 다운로드한 뒤 담당자 이메일로 메일 쓰기를 엽니다. 첨부는 메일에서 직접 해 주세요.">
@@ -1873,7 +1873,7 @@ export default function App() {
                 지역 「{searchRegion}」 주문 목록
               </p>
             )}
-            <p style={{ padding: '10px 16px', margin: 0, background: '#f0fdfa', borderBottom: '1px solid #99f6e4', fontSize: 12, color: '#0f766e' }}>
+            <p style={{ padding: '10px 16px', margin: 0, background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', fontSize: 12, color: '#475569' }}>
               배송 후 평점·사유·배송사진 입력 후 해당 행 [저장] 클릭
             </p>
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
@@ -1888,10 +1888,10 @@ export default function App() {
                   <th style={thStyle}>받는이</th>
                   <th style={{ ...thStyle, minWidth: 115 }}>발주처</th>
                   <th style={{ ...thStyle, width: 109 }}>수주화원</th>
-                  <th style={{ ...thStyle, background: '#e6fffa', width: 38 }}>평점</th>
-                  <th style={{ ...thStyle, background: '#e6fffa', width: 44 }}>사유</th>
-                  <th style={{ ...thStyle, background: '#e6fffa', width: 293 }}>배송사진</th>
-                  <th style={{ ...thStyle, background: '#e6fffa', width: 90 }}>저장</th>
+                  <th style={{ ...thStyle, background: '#f1f5f9', width: 38 }}>평점</th>
+                  <th style={{ ...thStyle, background: '#f1f5f9', width: 44 }}>사유</th>
+                  <th style={{ ...thStyle, background: '#f1f5f9', width: 293 }}>배송사진</th>
+                  <th style={{ ...thStyle, background: '#f1f5f9', width: 90 }}>저장</th>
                   <th style={{ ...thStyle, minWidth: 130 }}>발송장소</th>
                   <th style={thStyle}>지역</th>
                   <th style={thStyle}>특이사항</th>
@@ -1904,7 +1904,7 @@ export default function App() {
               <tbody>
                 {filteredOrders.map((row) => {
                   const draft = getRowDraft(row, rowUpdates)
-                  const afterStyle = { ...tdStyle, background: '#f0fdfa', borderLeft: '2px solid #99f6e4', borderRight: '2px solid #99f6e4' }
+                  const afterStyle = { ...tdStyle, background: '#f1f5f9', borderLeft: '2px solid #e2e8f0', borderRight: '2px solid #e2e8f0' }
                   return (
                     <tr key={row.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={tdStyle}>
@@ -1958,10 +1958,10 @@ export default function App() {
                             </label>
                             <input type="text" value={draft.deliveryPhotoUrl} onChange={(e) => setRowUpdate(row, { deliveryPhotoUrl: e.target.value })} placeholder="URL" style={{ ...cellInputStyle, flex: 1, minWidth: 60, padding: '4px 4px' }} />
                             {draft.photoFile && (
-                              <><span style={{ fontSize: 10, color: '#059669' }}>첨부</span><button type="button" onClick={() => openPhotoPreview(draft.photoFile!)} style={{ fontSize: 10, color: '#0f766e', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button></>
+                              <><span style={{ fontSize: 10, color: '#047857' }}>첨부</span><button type="button" onClick={() => openPhotoPreview(draft.photoFile!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button></>
                             )}
                             {row.delivery_photo && !draft.photoFile && !draft.deliveryPhotoUrl && (
-                              <button type="button" onClick={() => openPhotoPreview(row.delivery_photo!)} style={{ fontSize: 10, color: '#0f766e', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button>
+                              <button type="button" onClick={() => openPhotoPreview(row.delivery_photo!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button>
                             )}
                           </div>
                           <div
@@ -1991,10 +1991,10 @@ export default function App() {
                             </label>
                             <input type="text" value={draft.deliveryPhotoUrl2} onChange={(e) => setRowUpdate(row, { deliveryPhotoUrl2: e.target.value })} placeholder="URL" style={{ ...cellInputStyle, flex: 1, minWidth: 60, padding: '4px 4px' }} />
                             {draft.photoFile2 && (
-                              <><span style={{ fontSize: 10, color: '#059669' }}>첨부</span><button type="button" onClick={() => openPhotoPreview(draft.photoFile2!)} style={{ fontSize: 10, color: '#0f766e', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button></>
+                              <><span style={{ fontSize: 10, color: '#047857' }}>첨부</span><button type="button" onClick={() => openPhotoPreview(draft.photoFile2!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button></>
                             )}
                             {row.delivery_photo_2 && !draft.photoFile2 && !draft.deliveryPhotoUrl2 && (
-                              <button type="button" onClick={() => openPhotoPreview(row.delivery_photo_2!)} style={{ fontSize: 10, color: '#0f766e', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button>
+                              <button type="button" onClick={() => openPhotoPreview(row.delivery_photo_2!)} style={{ fontSize: 10, color: '#334155', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>보기</button>
                             )}
                           </div>
                         </div>
@@ -2039,7 +2039,7 @@ export default function App() {
             </div>
             <div>
               <div style={{ color: '#64748b', fontSize: 12, marginBottom: 4 }}>수익 합계</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#059669' }}>{formatNum(clientSummary.profit)}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#047857' }}>{formatNum(clientSummary.profit)}</div>
             </div>
             <div>
               <div style={{ color: '#64748b', fontSize: 12, marginBottom: 4 }}>주문 건수</div>
@@ -2072,10 +2072,10 @@ export default function App() {
                       <td style={tdStyle}>
                         <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           {row.delivery_photo && (
-                            <button type="button" onClick={() => openPhotoPreview(row.delivery_photo!)} style={{ background: 'none', border: 'none', color: '#0f766e', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>1 미리보기</button>
+                            <button type="button" onClick={() => openPhotoPreview(row.delivery_photo!)} style={{ background: 'none', border: 'none', color: '#334155', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>1 미리보기</button>
                           )}
                           {row.delivery_photo_2 && (
-                            <button type="button" onClick={() => openPhotoPreview(row.delivery_photo_2!)} style={{ background: 'none', border: 'none', color: '#0f766e', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>2 미리보기</button>
+                            <button type="button" onClick={() => openPhotoPreview(row.delivery_photo_2!)} style={{ background: 'none', border: 'none', color: '#334155', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>2 미리보기</button>
                           )}
                           {!row.delivery_photo && !row.delivery_photo_2 && '-'}
                         </span>
@@ -2150,7 +2150,7 @@ export default function App() {
               </label>
             ))}
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <button type="button" onClick={saveBalanceEdit} disabled={balanceSaving} style={{ padding: '8px 16px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, cursor: balanceSaving ? 'wait' : 'pointer', fontWeight: 600 }}>
+              <button type="button" onClick={saveBalanceEdit} disabled={balanceSaving} style={{ padding: '8px 16px', background: '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, cursor: balanceSaving ? 'wait' : 'pointer', fontWeight: 600 }}>
                 {balanceSaving ? '저장 중…' : '저장'}
               </button>
               <button type="button" onClick={() => setBalanceEditOpen(false)} disabled={balanceSaving} style={{ padding: '8px 16px', background: '#e2e8f0', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>취소</button>
@@ -2176,7 +2176,7 @@ const inputStyle: React.CSSProperties = {
 }
 const submitBtnStyle: React.CSSProperties = {
   padding: '10px 20px',
-  background: '#0f766e',
+  background: '#334155',
   color: '#fff',
   border: 'none',
   borderRadius: 8,
@@ -2204,7 +2204,7 @@ const cellInputStyle: React.CSSProperties = {
 }
 const editBtnStyle: React.CSSProperties = {
   padding: '6px 12px',
-  background: '#0f766e',
+  background: '#334155',
   color: '#fff',
   border: 'none',
   borderRadius: 6,
