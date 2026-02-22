@@ -549,7 +549,10 @@ export default function App() {
   const [generalFormatClient, setGeneralFormatClient] = useState('')
   const [statementExportLoading, setStatementExportLoading] = useState(false)
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0)
-  const { orders, loading: ordersLoading, error, refetch } = useOrders(appliedDateFrom || undefined, appliedDateTo || undefined)
+  // 지역·발송장소 검색 시에는 날짜 조건 없이 전체 조회
+  const ordersDateFrom = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateFrom || undefined)
+  const ordersDateTo = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateTo || undefined)
+  const { orders, loading: ordersLoading, error, refetch } = useOrders(ordersDateFrom, ordersDateTo)
   const clientList = useClientList()
   const generalFormatClients = useMemo(() => filterGeneralFormatClients(clientList), [clientList])
   const providerList = useProviderList()
@@ -560,10 +563,12 @@ export default function App() {
   const [providerDropdownOpen, setProviderDropdownOpen] = useState(false)
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false)
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false)
+  const [regionDropdownOpen, setRegionDropdownOpen] = useState(false)
   const clientInputRef = useRef<HTMLInputElement>(null)
   const providerInputRef = useRef<HTMLInputElement>(null)
   const branchInputRef = useRef<HTMLInputElement>(null)
   const locationInputRef = useRef<HTMLInputElement>(null)
+  const regionInputRef = useRef<HTMLInputElement>(null)
   const contactClientInputRef = useRef<HTMLInputElement>(null)
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
   const [photoPreviewFailed, setPhotoPreviewFailed] = useState(false)
@@ -1036,9 +1041,12 @@ export default function App() {
   }, [orders])
 
   const locationSuggestions = useMemo(() => {
-    const q = searchLocation.trim().toLowerCase()
+    const q = searchLocation.trim()
     if (!q) return locationList.slice(0, 50)
-    return locationList.filter((loc) => loc.toLowerCase().includes(q)).slice(0, 50)
+    const cho = getChosung(q)
+    return locationList.filter(
+      (loc) => getChosung(loc).startsWith(cho) || loc.includes(q)
+    ).slice(0, 50)
   }, [searchLocation, locationList])
 
   const regionList = useMemo(() => {
@@ -1866,17 +1874,30 @@ export default function App() {
             </div>
           )}
           {searchCondition === 'region' && (
-            <div style={{ position: 'relative', minWidth: 160 }}>
-              <select
+            <div style={{ position: 'relative', minWidth: 220 }}>
+              <input
+                ref={regionInputRef}
+                type="text"
                 value={searchRegion}
-                onChange={(e) => setSearchRegion(e.target.value)}
-                style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, minWidth: 160 }}
-              >
-                <option value="">지역 선택</option>
-                {regionList.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
+                onChange={(e) => { setSearchRegion(e.target.value); setRegionDropdownOpen(true); }}
+                onFocus={() => setRegionDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setRegionDropdownOpen(false), 150)}
+                placeholder="지역 입력 또는 목록에서 선택"
+                style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, width: '100%', minWidth: 220 }}
+              />
+              {regionDropdownOpen && regionSuggestions.length > 0 && (
+                <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, margin: 0, padding: 0, listStyle: 'none', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: 240, overflowY: 'auto' }}>
+                  {regionSuggestions.map((r) => (
+                    <li
+                      key={r}
+                      onMouseDown={(e) => { e.preventDefault(); setSearchRegion(r); setRegionDropdownOpen(false); regionInputRef.current?.blur(); }}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 14, borderBottom: '1px solid #f1f5f9' }}
+                    >
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
           <div style={{ marginLeft: 16, paddingLeft: 16, borderLeft: '1px solid #e2e8f0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
