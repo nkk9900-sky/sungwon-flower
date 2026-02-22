@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import imageCompression from 'browser-image-compression'
 import * as XLSX from 'xlsx'
 import { supabase, type Order } from './supabase'
 import { type ExportFormatType, filterGeneralFormatClients, ENTAS_STATEMENT_CLIENTS } from './statement-formats'
@@ -6,6 +7,17 @@ import { type ExportFormatType, filterGeneralFormatClients, ENTAS_STATEMENT_CLIE
 const ENTAS_CLIENT_SET = new Set(ENTAS_STATEMENT_CLIENTS as readonly string[])
 
 const CHOSUNG = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'
+
+/** 배송사진 업로드 전 브라우저에서 압축 (저장 공간·비용 절감) */
+async function compressImageForUpload(file: File): Promise<File> {
+  try {
+    const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true }
+    const compressed = await imageCompression(file, options)
+    return compressed as File
+  } catch {
+    return file
+  }
+}
 
 function getChosung(str: string): string {
   if (!str) return ''
@@ -1123,9 +1135,10 @@ export default function App() {
     setUpdatingId(row.id)
     let photoUrl = draft.deliveryPhotoUrl.trim() || null
     if (draft.photoFile) {
-      const ext = draft.photoFile.name.split('.').pop() || 'jpg'
+      const toUpload = await compressImageForUpload(draft.photoFile)
+      const ext = toUpload.name.split('.').pop() || 'jpg'
       const path = `orders/${row.id}/${Date.now()}_1.${ext}`
-      const { error: upErr } = await supabase.storage.from('delivery-photos').upload(path, draft.photoFile, { upsert: true })
+      const { error: upErr } = await supabase.storage.from('delivery-photos').upload(path, toUpload, { upsert: true })
       if (!upErr) {
         const { data: urlData } = supabase.storage.from('delivery-photos').getPublicUrl(path)
         photoUrl = urlData.publicUrl
@@ -1134,9 +1147,10 @@ export default function App() {
     }
     let photoUrl2 = draft.deliveryPhotoUrl2.trim() || null
     if (draft.photoFile2) {
-      const ext = draft.photoFile2.name.split('.').pop() || 'jpg'
+      const toUpload = await compressImageForUpload(draft.photoFile2)
+      const ext = toUpload.name.split('.').pop() || 'jpg'
       const path = `orders/${row.id}/${Date.now()}_2.${ext}`
-      const { error: upErr } = await supabase.storage.from('delivery-photos').upload(path, draft.photoFile2, { upsert: true })
+      const { error: upErr } = await supabase.storage.from('delivery-photos').upload(path, toUpload, { upsert: true })
       if (!upErr) {
         const { data: urlData } = supabase.storage.from('delivery-photos').getPublicUrl(path)
         photoUrl2 = urlData.publicUrl
