@@ -509,7 +509,7 @@ export default function App() {
   const [searchClient, setSearchClient] = useState('')
   const [searchLocation, setSearchLocation] = useState('')
   const [searchRegion, setSearchRegion] = useState('')
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState(() => ({ ...emptyForm, date: getTodayISO() }))
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'saving' | 'ok' | 'error'>('idle')
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [rowUpdates, setRowUpdates] = useState<Record<string, RowDraft>>({})
@@ -1226,7 +1226,7 @@ export default function App() {
       loadOrderIntoForm(row)
     } else {
       setSelectedOrderId(null)
-      setForm(emptyForm)
+      setForm({ ...emptyForm, date: getTodayISO() })
     }
   }
 
@@ -1290,7 +1290,7 @@ export default function App() {
       }
       setSubmitStatus('ok')
       setSelectedOrderId(null)
-      setForm(emptyForm)
+      setForm({ ...emptyForm, date: getTodayISO() })
       refetch()
       setDataRefreshTrigger((t) => t + 1)
       setTimeout(() => setSubmitStatus('idle'), 2000)
@@ -1303,7 +1303,7 @@ export default function App() {
       return
     }
     setSubmitStatus('ok')
-    setForm(emptyForm)
+    setForm({ ...emptyForm, date: getTodayISO() })
     refetch()
     setDataRefreshTrigger((t) => t + 1)
     setTimeout(() => setSubmitStatus('idle'), 2000)
@@ -1627,7 +1627,7 @@ export default function App() {
               {submitStatus === 'saving' ? '저장 중…' : selectedOrderId ? '수정 저장' : '주문 등록'}
             </button>
             {selectedOrderId && (
-              <button type="button" onClick={() => { setSelectedOrderId(null); setForm(emptyForm); }} style={{ padding: '10px 20px', background: '#e2e8f0', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
+              <button type="button" onClick={() => { setSelectedOrderId(null); setForm({ ...emptyForm, date: getTodayISO() }); }} style={{ padding: '10px 20px', background: '#e2e8f0', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
                 선택 해제
               </button>
             )}
