@@ -308,6 +308,25 @@ function useOrders(dateFrom?: string, dateTo?: string) {
   return { orders, loading, error, refetch }
 }
 
+/** 주문 등록 폼용: 전체 주문에서 발송장소 목록 (날짜 구간 무관) */
+function useAllLocationsList() {
+  const [list, setList] = useState<string[]>([])
+  useEffect(() => {
+    if (!supabase) return
+    supabase
+      .from('orders')
+      .select('location')
+      .not('location', 'is', null)
+      .order('date', { ascending: false })
+      .limit(5000)
+      .then(({ data }) => {
+        const locs = [...new Set((data ?? []).map((r: { location: string | null }) => r.location).filter(Boolean))] as string[]
+        setList(locs.sort())
+      })
+  }, [])
+  return list
+}
+
 function useOrdersSummary(dateFrom: string | undefined, dateTo: string | undefined) {
   const [summary, setSummary] = useState<{ sales: number; profit: number; count: number }>({ sales: 0, profit: 0, count: 0 })
   const [loading, setLoading] = useState(true)
@@ -553,6 +572,7 @@ export default function App() {
   const ordersDateFrom = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateFrom || undefined)
   const ordersDateTo = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateTo || undefined)
   const { orders, loading: ordersLoading, error, refetch } = useOrders(ordersDateFrom, ordersDateTo)
+  const allLocationsList = useAllLocationsList()
   const clientList = useClientList()
   const generalFormatClients = useMemo(() => filterGeneralFormatClients(clientList), [clientList])
   const providerList = useProviderList()
@@ -564,11 +584,13 @@ export default function App() {
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false)
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false)
   const [regionDropdownOpen, setRegionDropdownOpen] = useState(false)
+  const [formLocationDropdownOpen, setFormLocationDropdownOpen] = useState(false)
   const clientInputRef = useRef<HTMLInputElement>(null)
   const providerInputRef = useRef<HTMLInputElement>(null)
   const branchInputRef = useRef<HTMLInputElement>(null)
   const locationInputRef = useRef<HTMLInputElement>(null)
   const regionInputRef = useRef<HTMLInputElement>(null)
+  const formLocationInputRef = useRef<HTMLInputElement>(null)
   const contactClientInputRef = useRef<HTMLInputElement>(null)
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
   const [photoPreviewFailed, setPhotoPreviewFailed] = useState(false)
@@ -1048,6 +1070,16 @@ export default function App() {
       (loc) => getChosung(loc).startsWith(cho) || loc.includes(q)
     ).slice(0, 50)
   }, [searchLocation, locationList])
+
+  /** 주문 등록 폼 발송장소 추천 (전체 발송장소 목록 + 초성·포함) */
+  const formLocationSuggestions = useMemo(() => {
+    const q = form.location.trim()
+    if (!q) return allLocationsList.slice(0, 50)
+    const cho = getChosung(q)
+    return allLocationsList.filter(
+      (loc) => getChosung(loc).startsWith(cho) || loc.includes(q)
+    ).slice(0, 50)
+  }, [form.location, allLocationsList])
 
   const regionList = useMemo(() => {
     const list = [...new Set(orders.map((o) => o.region).filter(Boolean))] as string[]
@@ -1602,9 +1634,31 @@ export default function App() {
               <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>수주화원</span>
               <input type="text" value={form.partner} onChange={(e) => updateForm('partner', e.target.value)} placeholder="수주화원" style={inputStyle} />
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
               <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>발송장소</span>
-              <input type="text" value={form.location} onChange={(e) => updateForm('location', e.target.value)} placeholder="발송장소" style={inputStyle} />
+              <input
+                ref={formLocationInputRef}
+                type="text"
+                value={form.location}
+                onChange={(e) => { updateForm('location', e.target.value); setFormLocationDropdownOpen(true); }}
+                onFocus={() => setFormLocationDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setFormLocationDropdownOpen(false), 150)}
+                placeholder="발송장소 (초성 검색 가능)"
+                style={inputStyle}
+              />
+              {formLocationDropdownOpen && formLocationSuggestions.length > 0 && (
+                <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, margin: 0, padding: 0, listStyle: 'none', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: 200, overflowY: 'auto' }}>
+                  {formLocationSuggestions.map((loc) => (
+                    <li
+                      key={loc}
+                      onMouseDown={(e) => { e.preventDefault(); updateForm('location', loc); setFormLocationDropdownOpen(false); formLocationInputRef.current?.blur(); }}
+                      style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #f1f5f9' }}
+                    >
+                      {loc}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>특이사항</span>
