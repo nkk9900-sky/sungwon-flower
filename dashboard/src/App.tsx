@@ -1938,7 +1938,7 @@ export default function App() {
                       <td style={tdStyle}>{row.provider ?? '-'}</td>
                       <td style={tdStyle}>{row.partner ?? '-'}</td>
                       <td style={afterStyle}>
-                        <input type="number" min={1} max={5} step={0.5} value={draft.partnerRating} onChange={(e) => setRowUpdate(row, { partnerRating: e.target.value })} placeholder="1~5" style={{ ...cellInputStyle, width: 34, minWidth: 34, padding: '4px 4px' }} title="수주화원 평점" />
+                        <input type="text" value={draft.partnerRating} onChange={(e) => setRowUpdate(row, { partnerRating: e.target.value })} placeholder="평점" style={{ ...cellInputStyle, width: 34, minWidth: 34, padding: '4px 4px', textAlign: 'center' }} title="수주화원 평점 (수기 입력)" />
                       </td>
                       <td style={afterStyle}>
                         <input type="text" value={draft.partnerReason} onChange={(e) => setRowUpdate(row, { partnerReason: e.target.value })} placeholder="사유 입력" style={{ ...cellInputStyle, maxWidth: '100%' }} title="평점 사유" />
