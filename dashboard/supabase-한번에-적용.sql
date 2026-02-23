@@ -3,7 +3,10 @@
 -- Supabase 대시보드 → SQL Editor → New query → 전체 붙여넣기 → Run
 -- ============================================================
 
--- 0) orders 테이블에 평점·사유·배송사진 칸이 없으면 추가 (필수!)
+-- 0) orders 테이블에 없으면 추가 (필수!)
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS request_department TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS orderer_name TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS orderer_phone TEXT;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS partner_rating NUMERIC;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS partner_reason TEXT;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_photo TEXT;

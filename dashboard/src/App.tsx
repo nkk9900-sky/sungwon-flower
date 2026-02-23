@@ -1306,6 +1306,7 @@ export default function App() {
       date: form.date.trim() || getTodayISO(),
       client: form.client.trim() || null,
       branch: form.branch.trim() || null,
+      request_department: form.requestDepartment.trim() || null,
       item: form.item.trim() || null,
       recipient: form.recipient.trim() || null,
       provider: form.provider.trim() || null,
