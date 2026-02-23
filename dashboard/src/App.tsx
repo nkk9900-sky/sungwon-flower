@@ -8,6 +8,72 @@ const ENTAS_CLIENT_SET = new Set(ENTAS_STATEMENT_CLIENTS as readonly string[])
 
 const CHOSUNG = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'
 
+/** 노랑풍선 명세서: 상품명 규칙 (계획서 5) */
+function yellowBalloonProductName(o: Order): string {
+  const item = (o.item ?? '').toLowerCase()
+  const notes = (o.notes ?? '').toLowerCase()
+  const loc = (o.location ?? '').toLowerCase()
+  if (item.includes('결혼') || notes.includes('결혼')) return '결혼화환'
+  if (loc.includes('장례') || loc.includes('장례식장')) return '근조화환'
+  return ''
+}
+
+/** 노랑풍선 템플릿(norang_template.xlsx) 불러와서 해당 월 시트에 주문 채운 뒤 Blob 반환. 템플릿은 public/norang_template.xlsx 에 두세요. */
+async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, dateTo: string): Promise<Blob> {
+  const res = await fetch('/norang_template.xlsx')
+  if (!res.ok) throw new Error('템플릿을 불러올 수 없습니다. dashboard/public 폴더에 norang_template.xlsx를 넣어 주세요.')
+  const ab = await res.arrayBuffer()
+  const wb = XLSX.read(ab, { type: 'array' })
+  const month = parseInt(dateFrom.slice(5, 7), 10)
+  const sheetName = `${month}월`
+  if (!wb.SheetNames.includes(sheetName)) throw new Error(`템플릿에 '${sheetName}' 시트가 없습니다.`)
+  const ws = wb.Sheets[sheetName]!
+
+  const isExecutive = (o: Order) => (o.branch ?? '').includes('노랑풍선') || (o.client ?? '').includes('노랑풍선')
+  const 거래처List = orders.filter((o) => !isExecutive(o)).slice(0, 21)
+  const 임직원List = orders.filter((o) => isExecutive(o)).slice(0, 5)
+
+  const toRow = (o: Order, no: number, isExec: boolean): (string | number)[] => {
+    const price = o.price ?? 0
+    const qty = o.quantity ?? 1
+    const amount = price * qty
+    return [
+      '', // 구분
+      no,
+      o.date ?? '', // 배달일자
+      yellowBalloonProductName(o), // 상품명
+      '이상훈', // 발주자
+      o.location ?? '', // 배송지
+      isExec ? '본인결혼' : (o.client ?? ''), // 거래처명 또는 사유
+      o.request_department ?? '', // 요청팀
+      o.recipient ?? '', // 수령인
+      amount, // 금액
+      '', // 비고(넣지 않음)
+    ]
+  }
+
+  const 거래처Rows = 거래처List.map((o, i) => toRow(o, i + 1, false))
+  while (거래처Rows.length < 21) 거래처Rows.push(['', '', '', '', '', '', '', '', '', '', ''])
+  const 임직원Rows = 임직원List.map((o, i) => toRow(o, i + 1, true))
+  while (임직원Rows.length < 5) 임직원Rows.push(['', '', '', '', '', '', '', '', '', '', ''])
+
+  // 시트를 배열로 읽어서 해당 행만 덮어쓰고 다시 시트로 넣기
+  const arr = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as (string | number)[][]
+  while (arr.length < 32) arr.push([])
+  for (let i = 0; i < 21; i++) arr[3 + i] = [...거래처Rows[i]]
+  for (let i = 0; i < 5; i++) arr[26 + i] = [...임직원Rows[i]]
+  // 채움 표시 (코드 실행 여부 확인용)
+  if (arr[0]) arr[0][0] = `성원플라워 채움 (${orders.length}건)`
+  else arr[0] = [`성원플라워 채움 (${orders.length}건)`]
+  const newWs = XLSX.utils.aoa_to_sheet(arr)
+  wb.Sheets[sheetName] = newWs
+  // 채운 시트를 맨 앞으로 (열면 해당 월이 보이게)
+  wb.SheetNames = [sheetName, ...wb.SheetNames.filter((s) => s !== sheetName)]
+
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+}
+
 /** 배송사진 업로드 전 브라우저에서 압축 (저장 공간·비용 절감) */
 async function compressImageForUpload(file: File): Promise<File> {
   try {
@@ -803,43 +869,29 @@ export default function App() {
   const handleYellowBalloonExcel = async () => {
     if (!supabase || !yellowBalloonDateFrom.trim() || !yellowBalloonDateTo.trim()) return
     setYellowBalloonExportLoading(true)
-    const { data: rows, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('client', '노랑풍선')
-      .gte('date', yellowBalloonDateFrom.trim())
-      .lte('date', yellowBalloonDateTo.trim())
-      .order('date', { ascending: true })
-    setYellowBalloonExportLoading(false)
-    if (error) return
-    const list = (rows ?? []) as Order[]
-    const headers = ['구분', 'No', '배달일자', '상품명', '발주자', '배송지', '거래처 명', '요청팀', '수령인', '금액', '비고']
-    const dataRows: (string | number)[][] = list.map((o, i) => {
-      const price = o.price ?? 0
-      const qty = o.quantity ?? 1
-      const amount = price * qty
-      return [
-        '', // 구분
-        i + 1, // No
-        o.date ?? '', // 배달일자
-        o.item ?? '', // 상품명
-        '', // 발주자 (미입력)
-        o.location ?? '', // 배송지
-        o.client ?? '', // 거래처 명
-        o.request_department ?? '', // 요청팀
-        o.recipient ?? '', // 수령인
-        amount, // 금액
-        o.notes ?? '', // 비고
-      ]
-    })
-    const totalAmount = dataRows.reduce((s, r) => s + (Number(r[9]) || 0), 0)
-    dataRows.push(['', '', '', '', '', '', '소 계', '', '', totalAmount, ''])
-    const sheetData = [headers, ...dataRows]
-    const ws = XLSX.utils.aoa_to_sheet(sheetData)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, '경조화환발주내역')
-    const fileName = `2026년_경조화환발주내역_성원플라워_${yellowBalloonDateFrom}_${yellowBalloonDateTo}.xlsx`
-    XLSX.writeFile(wb, fileName)
+    try {
+      const { data: rows, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('client', '노랑풍선')
+        .gte('date', yellowBalloonDateFrom.trim())
+        .lte('date', yellowBalloonDateTo.trim())
+        .order('date', { ascending: true })
+      setYellowBalloonExportLoading(false)
+      if (error) return
+      const list = (rows ?? []) as Order[]
+      if (list.length === 0) alert('선택한 기간에 노랑풍선 주문이 없습니다. 빈 양식으로 내려받습니다.')
+      const blob = await fillYellowBalloonTemplate(list, yellowBalloonDateFrom.trim(), yellowBalloonDateTo.trim())
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `2026년_경조화환발주내역_성원플라워_${yellowBalloonDateFrom}_${yellowBalloonDateTo}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setYellowBalloonExportLoading(false)
+      alert(err instanceof Error ? err.message : '노랑풍선 명세서 생성 실패')
+    }
   }
 
   const handleStatementExport = async () => {
@@ -881,29 +933,29 @@ export default function App() {
     if (exportFormat === 'yellow_balloon') {
       if (!supabase) return
       setYellowBalloonExportLoading(true)
-      const { data: rows, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('client', '노랑풍선')
-        .gte('date', dateFrom)
-        .lte('date', dateTo)
-        .order('date', { ascending: true })
-      setYellowBalloonExportLoading(false)
-      if (error) return
-      const list = (rows ?? []) as Order[]
-      const headers = ['구분', 'No', '배달일자', '상품명', '발주자', '배송지', '거래처 명', '요청팀', '수령인', '금액', '비고']
-      const dataRows: (string | number)[][] = list.map((o, i) => {
-        const price = o.price ?? 0
-        const qty = o.quantity ?? 1
-        const amount = price * qty
-        return ['', i + 1, o.date ?? '', o.item ?? '', '', o.location ?? '', o.client ?? '', o.request_department ?? '', o.recipient ?? '', amount, o.notes ?? '']
-      })
-      const totalAmount = dataRows.reduce((s, r) => s + (Number(r[9]) || 0), 0)
-      dataRows.push(['', '', '', '', '', '', '소 계', '', '', totalAmount, ''])
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows])
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, '경조화환발주내역')
-      XLSX.writeFile(wb, `2026년_경조화환발주내역_성원플라워_${dateFrom}_${dateTo}.xlsx`)
+      try {
+        const { data: rows, error } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('client', '노랑풍선')
+          .gte('date', dateFrom)
+          .lte('date', dateTo)
+          .order('date', { ascending: true })
+        setYellowBalloonExportLoading(false)
+        if (error) return
+        const list = (rows ?? []) as Order[]
+        if (list.length === 0) alert('선택한 기간에 노랑풍선 주문이 없습니다. 빈 양식으로 내려받습니다.')
+        const blob = await fillYellowBalloonTemplate(list, dateFrom, dateTo)
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `2026년_경조화환발주내역_성원플라워_${dateFrom}_${dateTo}.xlsx`
+        a.click()
+        URL.revokeObjectURL(url)
+      } catch (err) {
+        setYellowBalloonExportLoading(false)
+        alert(err instanceof Error ? err.message : '노랑풍선 명세서 생성 실패')
+      }
       return
     }
     if (exportFormat === 'entas_statement') {
@@ -987,18 +1039,18 @@ export default function App() {
       setStatementExportLoading(false)
       if (error) return
       const list = (rows ?? []) as Order[]
-      const headers = ['구분', 'No', '배달일자', '상품명', '발주자', '배송지', '거래처 명', '요청팀', '수령인', '금액', '비고']
-      const dataRows: (string | number)[][] = list.map((o, i) => {
-        const price = o.price ?? 0
-        const qty = o.quantity ?? 1
-        return ['', i + 1, o.date ?? '', o.item ?? '', '', o.location ?? '', o.client ?? '', o.request_department ?? '', o.recipient ?? '', price * qty, o.notes ?? '']
-      })
-      const totalAmount = dataRows.reduce((s, r) => s + (Number(r[9]) || 0), 0)
-      dataRows.push(['', '', '', '', '', '', '소 계', '', '', totalAmount, ''])
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows])
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, '경조화환발주내역')
-      XLSX.writeFile(wb, `2026년_경조화환발주내역_성원플라워_${dateFrom}_${dateTo}.xlsx`)
+      if (list.length === 0) alert('선택한 기간에 노랑풍선 주문이 없습니다. 빈 양식으로 내려받습니다.')
+      try {
+        const blob = await fillYellowBalloonTemplate(list, dateFrom, dateTo)
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `2026년_경조화환발주내역_성원플라워_${dateFrom}_${dateTo}.xlsx`
+        a.click()
+        URL.revokeObjectURL(url)
+      } catch (err) {
+        alert(err instanceof Error ? err.message : '노랑풍선 명세서 생성 실패')
+      }
     } else {
       const { data: rows, error } = await supabase.from('orders').select('*').eq('client', client).gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: true })
       setStatementExportLoading(false)
