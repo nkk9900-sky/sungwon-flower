@@ -1,0 +1,24 @@
+---
+description: 배포 안내 시 반드시 배포 명령어 함께 안내
+alwaysApply: true
+---
+
+# 배포 안내 시 명령어 포함
+
+- 이 프로젝트(dashboard) 배포를 안내할 때는 **항상** 아래 명령어를 함께 적어 준다.
+- 사용자가 매번 "배포 명령어 줘"라고 하지 않도록, 배포를 권할 때마다 명령어를 포함한다.
+
+## 배포 명령어 (dashboard 폴더에서)
+
+```bash
+cd dashboard
+npm run deploy
+```
+
+또는 (Git 연동 배포 사용 시):
+
+```bash
+git add -A && git commit -m "메시지" && git push
+```
+
+(Vercel이 GitHub 등과 연동되어 있으면 push만 해도 자동 배포됨)

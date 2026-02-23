@@ -26,9 +26,9 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
   const wb = XLSX.read(ab, { type: 'array' })
   const month = parseInt(dateFrom.slice(5, 7), 10)
   const yearShort = dateFrom.slice(2, 4) // 2026-02-01 → "26"
-  // 템플릿은 시트 이름 구분 없이 첫 번째 시트(또는 1월)에 채우고, 결과 시트 이름만 "26년 2월"로 저장
-  const foundSheetName = wb.SheetNames.find((s) => s.includes('1월') || s.includes('1 월')) ?? wb.SheetNames[0]
-  if (!foundSheetName) throw new Error('템플릿에 시트가 없습니다.')
+  // 템플릿의 첫 번째 시트에 채우고, 결과 시트 이름만 "26년 2월"로 저장 (시트 이름 검사 없음)
+  if (!wb.SheetNames.length) throw new Error('템플릿에 시트가 없습니다.')
+  const foundSheetName = wb.SheetNames[0]
   const ws = wb.Sheets[foundSheetName]!
 
   const isExecutive = (o: Order) => (o.branch ?? '').includes('노랑풍선') || (o.client ?? '').includes('노랑풍선')
@@ -61,9 +61,22 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
 
   // 시트를 배열로 읽어서 해당 행만 덮어쓰고 다시 시트로 넣기
   const arr = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as (string | number)[][]
-  while (arr.length < 32) arr.push([])
-  for (let i = 0; i < 21; i++) arr[3 + i] = [...거래처Rows[i]]
-  for (let i = 0; i < 5; i++) arr[26 + i] = [...임직원Rows[i]]
+  // 템플릿에서 "No" 또는 "배달일자"가 있는 행을 헤더로 보고, 그 다음 행부터 데이터 영역으로 사용
+  let dataStartRow = 3 // 기본: 4행부터 (0-based 3)
+  for (let r = 0; r < Math.min(arr.length, 50); r++) {
+    const row = arr[r]
+    if (!row || !Array.isArray(row)) continue
+    const line = row.map((c) => String(c ?? ''))
+    if (line.some((c) => c.includes('배달일자') || c.trim() === 'No')) {
+      dataStartRow = r + 1
+      break
+    }
+  }
+  const 거래처Start = dataStartRow
+  const 임직원Start = dataStartRow + 21 // 거래처 21행 바로 다음
+  while (arr.length < 임직원Start + 6) arr.push([])
+  for (let i = 0; i < 21; i++) arr[거래처Start + i] = [...거래처Rows[i]]
+  for (let i = 0; i < 5; i++) arr[임직원Start + i] = [...임직원Rows[i]]
   // 채움 표시 (코드 실행 여부 확인용)
   if (arr[0]) arr[0][0] = `성원플라워 채움 (${orders.length}건)`
   else arr[0] = [`성원플라워 채움 (${orders.length}건)`]
