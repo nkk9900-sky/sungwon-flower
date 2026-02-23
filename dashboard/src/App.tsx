@@ -26,16 +26,9 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
   const wb = XLSX.read(ab, { type: 'array' })
   const month = parseInt(dateFrom.slice(5, 7), 10)
   const yearShort = dateFrom.slice(2, 4) // 2026-02-01 → "26"
-  const possibleNames = [
-    `${month}월`,
-    `${month} 월`,
-    `${String(month).padStart(2, '0')}월`,
-    String(month),
-    String(month).padStart(2, '0'),
-  ]
-  const foundSheetName = possibleNames.find((name) => wb.SheetNames.includes(name))
-    ?? wb.SheetNames.find((s) => s.trim() === `${month}월` || s.trim() === `${month} 월` || s.includes(`${month}월`) || s.includes(`${month} 월`))
-  if (!foundSheetName) throw new Error(`템플릿에 ${month}월 시트가 없습니다. 시트 이름: ${wb.SheetNames.join(', ')}`)
+  // 템플릿은 시트 이름 구분 없이 첫 번째 시트(또는 1월)에 채우고, 결과 시트 이름만 "26년 2월"로 저장
+  const foundSheetName = wb.SheetNames.find((s) => s.includes('1월') || s.includes('1 월')) ?? wb.SheetNames[0]
+  if (!foundSheetName) throw new Error('템플릿에 시트가 없습니다.')
   const ws = wb.Sheets[foundSheetName]!
 
   const isExecutive = (o: Order) => (o.branch ?? '').includes('노랑풍선') || (o.client ?? '').includes('노랑풍선')
