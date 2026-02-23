@@ -59,36 +59,33 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
   const 임직원Rows = 임직원List.map((o, i) => toRow(o, i + 1, true))
   while (임직원Rows.length < 5) 임직원Rows.push(['', '', '', '', '', '', '', '', '', '', ''])
 
-  // 시트를 배열로 읽어서 해당 행만 덮어쓰고 다시 시트로 넣기
-  const arr = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as (string | number)[][]
-  // 템플릿에서 "No" 또는 "배달일자"가 있는 행을 헤더로 보고, 그 다음 행부터 데이터 영역으로 사용
-  let dataStartRow = 3 // 기본: 4행부터 (0-based 3)
-  for (let r = 0; r < Math.min(arr.length, 50); r++) {
-    const row = arr[r]
-    if (!row || !Array.isArray(row)) continue
-    const line = row.map((c) => String(c ?? ''))
-    if (line.some((c) => c.includes('배달일자') || c.trim() === 'No')) {
-      dataStartRow = r + 1
-      break
-    }
+  // 원본 시트(양식) 유지하고, 데이터 셀만 덮어쓰기 → 소계/합계 수식·테두리·열폭 유지
+  const setCell = (excelRow1: number, colIndex: number, val: string | number) => {
+    const addr = XLSX.utils.encode_cell({ r: excelRow1 - 1, c: colIndex })
+    const v = typeof val === 'number' ? val : (val ?? '')
+    ws[addr] = typeof v === 'number' ? { t: 'n', v } : { t: 's', v: String(v) }
   }
-  const 거래처Start = dataStartRow
-  const 임직원Start = dataStartRow + 21 // 거래처 21행 바로 다음
-  while (arr.length < 임직원Start + 6) arr.push([])
-  for (let i = 0; i < 21; i++) arr[거래처Start + i] = [...거래처Rows[i]]
-  for (let i = 0; i < 5; i++) arr[임직원Start + i] = [...임직원Rows[i]]
-  // 채움 표시 (코드 실행 여부 확인용)
-  if (arr[0]) arr[0][0] = `성원플라워 채움 (${orders.length}건)`
-  else arr[0] = [`성원플라워 채움 (${orders.length}건)`]
-  const newWs = XLSX.utils.aoa_to_sheet(arr)
-  // 채운 시트 이름을 "26년 2월" 형태로 통일
+  // 거래처 4~24행 (Excel 4행 = index 3)
+  for (let i = 0; i < 21; i++) {
+    const row = 거래처Rows[i]
+    for (let c = 0; c < row.length; c++) setCell(4 + i, c, row[c])
+  }
+  // 임직원 27~31행
+  for (let i = 0; i < 5; i++) {
+    const row = 임직원Rows[i]
+    for (let c = 0; c < row.length; c++) setCell(27 + i, c, row[c])
+  }
+  // A1만 채움 표시
+  const a1 = XLSX.utils.encode_cell({ r: 0, c: 0 })
+  ws[a1] = { t: 's', v: `성원플라워 채움 (${orders.length}건)` }
+
+  // 시트 이름만 "26년 2월"로 변경하고 맨 앞으로
   const monthSheetName = `${yearShort}년 ${month}월`
   delete wb.Sheets[foundSheetName]
-  wb.Sheets[monthSheetName] = newWs
+  wb.Sheets[monthSheetName] = ws
   const nameIdx = wb.SheetNames.indexOf(foundSheetName)
   if (nameIdx >= 0) wb.SheetNames[nameIdx] = monthSheetName
   else wb.SheetNames.unshift(monthSheetName)
-  // 채운 시트를 맨 앞으로 (열면 해당 월이 보이게)
   wb.SheetNames = [monthSheetName, ...wb.SheetNames.filter((s) => s !== monthSheetName)]
 
   const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
