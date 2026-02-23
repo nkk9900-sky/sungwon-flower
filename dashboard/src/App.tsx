@@ -25,9 +25,18 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
   const ab = await res.arrayBuffer()
   const wb = XLSX.read(ab, { type: 'array' })
   const month = parseInt(dateFrom.slice(5, 7), 10)
-  const sheetName = `${month}월`
-  if (!wb.SheetNames.includes(sheetName)) throw new Error(`템플릿에 '${sheetName}' 시트가 없습니다.`)
-  const ws = wb.Sheets[sheetName]!
+  const yearShort = dateFrom.slice(2, 4) // 2026-02-01 → "26"
+  const possibleNames = [
+    `${month}월`,
+    `${month} 월`,
+    `${String(month).padStart(2, '0')}월`,
+    String(month),
+    String(month).padStart(2, '0'),
+  ]
+  const foundSheetName = possibleNames.find((name) => wb.SheetNames.includes(name))
+    ?? wb.SheetNames.find((s) => s.trim() === `${month}월` || s.trim() === `${month} 월` || s.includes(`${month}월`) || s.includes(`${month} 월`))
+  if (!foundSheetName) throw new Error(`템플릿에 ${month}월 시트가 없습니다. 시트 이름: ${wb.SheetNames.join(', ')}`)
+  const ws = wb.Sheets[foundSheetName]!
 
   const isExecutive = (o: Order) => (o.branch ?? '').includes('노랑풍선') || (o.client ?? '').includes('노랑풍선')
   const 거래처List = orders.filter((o) => !isExecutive(o)).slice(0, 21)
@@ -66,9 +75,15 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
   if (arr[0]) arr[0][0] = `성원플라워 채움 (${orders.length}건)`
   else arr[0] = [`성원플라워 채움 (${orders.length}건)`]
   const newWs = XLSX.utils.aoa_to_sheet(arr)
-  wb.Sheets[sheetName] = newWs
+  // 채운 시트 이름을 "26년 2월" 형태로 통일
+  const monthSheetName = `${yearShort}년 ${month}월`
+  delete wb.Sheets[foundSheetName]
+  wb.Sheets[monthSheetName] = newWs
+  const nameIdx = wb.SheetNames.indexOf(foundSheetName)
+  if (nameIdx >= 0) wb.SheetNames[nameIdx] = monthSheetName
+  else wb.SheetNames.unshift(monthSheetName)
   // 채운 시트를 맨 앞으로 (열면 해당 월이 보이게)
-  wb.SheetNames = [sheetName, ...wb.SheetNames.filter((s) => s !== sheetName)]
+  wb.SheetNames = [monthSheetName, ...wb.SheetNames.filter((s) => s !== monthSheetName)]
 
   const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
   return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
