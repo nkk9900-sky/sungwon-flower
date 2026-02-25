@@ -59,25 +59,12 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
   const 임직원Rows = 임직원List.map((o, i) => toRow(o, i + 1, true))
   while (임직원Rows.length < 5) 임직원Rows.push(['', '', '', '', '', '', '', '', '', '', ''])
 
-  // 원본 시트(양식) 유지하고, 데이터 셀만 덮어쓰기 → 소계/합계 수식·테두리·열폭 유지
-  const setCell = (excelRow1: number, colIndex: number, val: string | number) => {
-    const addr = XLSX.utils.encode_cell({ r: excelRow1 - 1, c: colIndex })
-    const v = typeof val === 'number' ? val : (val ?? '')
-    ws[addr] = typeof v === 'number' ? { t: 'n', v } : { t: 's', v: String(v) }
-  }
-  // 템플릿: 데이터가 B열~L열(구분·No·배달일자…비고), 거래처 3~21행, 22 소계 23 헤더, 임직원 24~28행
-  const colStart = 1 // B열부터 (0=A, 1=B)
-  for (let i = 0; i < 19; i++) {
-    const row = 거래처Rows[i]
-    for (let c = 0; c < row.length; c++) setCell(3 + i, colStart + c, row[c])
-  }
-  for (let i = 0; i < 5; i++) {
-    const row = 임직원Rows[i]
-    for (let c = 0; c < row.length; c++) setCell(24 + i, colStart + c, row[c])
-  }
-  // B1에 채움 표시 (템플릿 제목 위치)
-  const b1 = XLSX.utils.encode_cell({ r: 0, c: 1 })
-  ws[b1] = { t: 's', v: `성원플라워 채움 (${orders.length}건)` }
+  // B1에 채움 표시 (반드시 먼저)
+  ws['B1'] = { t: 's', v: `성원플라워 채움 (${orders.length}건)` }
+  // sheet_add_aoa로 B3·B24에 데이터 블록 덮어쓰기 (템플릿: 거래처 3~21행, 임직원 24~28행, B~L열)
+  const 거래처19 = 거래처Rows.slice(0, 19)
+  XLSX.utils.sheet_add_aoa(ws, 거래처19, { origin: 'B3' })
+  XLSX.utils.sheet_add_aoa(ws, 임직원Rows, { origin: 'B24' })
 
   // 시트 이름만 "26년 2월"로 변경하고 맨 앞으로
   const monthSheetName = `${yearShort}년 ${month}월`
