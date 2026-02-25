@@ -65,18 +65,19 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
     const v = typeof val === 'number' ? val : (val ?? '')
     ws[addr] = typeof v === 'number' ? { t: 'n', v } : { t: 's', v: String(v) }
   }
-  // 템플릿 구조: 거래처 3~21행(19행), 22행 소계, 23행 헤더(사유), 임직원 24~28행
+  // 템플릿: 데이터가 B열~L열(구분·No·배달일자…비고), 거래처 3~21행, 22 소계 23 헤더, 임직원 24~28행
+  const colStart = 1 // B열부터 (0=A, 1=B)
   for (let i = 0; i < 19; i++) {
     const row = 거래처Rows[i]
-    for (let c = 0; c < row.length; c++) setCell(3 + i, c, row[c])
+    for (let c = 0; c < row.length; c++) setCell(3 + i, colStart + c, row[c])
   }
   for (let i = 0; i < 5; i++) {
     const row = 임직원Rows[i]
-    for (let c = 0; c < row.length; c++) setCell(24 + i, c, row[c])
+    for (let c = 0; c < row.length; c++) setCell(24 + i, colStart + c, row[c])
   }
-  // A1 또는 B1 채움 표시 (템플릿에 맞춤)
-  const a1 = XLSX.utils.encode_cell({ r: 0, c: 0 })
-  ws[a1] = { t: 's', v: `성원플라워 채움 (${orders.length}건)` }
+  // B1에 채움 표시 (템플릿 제목 위치)
+  const b1 = XLSX.utils.encode_cell({ r: 0, c: 1 })
+  ws[b1] = { t: 's', v: `성원플라워 채움 (${orders.length}건)` }
 
   // 시트 이름만 "26년 2월"로 변경하고 맨 앞으로
   const monthSheetName = `${yearShort}년 ${month}월`
