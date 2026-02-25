@@ -24,6 +24,8 @@ export type Order = {
   delivery_photo: string | null
   delivery_photo_2: string | null
   location: string | null
+  delivery_detail_address: string | null
+  sender: string | null
   region: string | null
   notes: string | null
   price: number | null

@@ -86,10 +86,10 @@ function buildStatementHtml(
     tbody tr:hover { background: #fafafa; }
     .col-month { width: 6%; text-align: center; }
     .col-day { width: 6%; text-align: center; }
-    .col-item { width: 9%; text-align: center; padding-left: 6px; padding-right: 6px; }
-    .col-requester { width: 14%; padding-left: 10px; }
-    .col-location { width: 27%; padding-left: 10px; text-align: center; }
-    .col-qty { width: 8%; text-align: center; padding-right: 10px; }
+    .col-item { width: 11%; text-align: center; padding-left: 6px; padding-right: 6px; }
+    .col-requester { width: 20%; padding-left: 10px; }
+    .col-location { width: 20%; padding-left: 10px; text-align: center; }
+    .col-qty { width: 5%; text-align: center; padding-right: 10px; }
     .col-supply { width: 11%; text-align: right; padding-right: 10px; }
     .col-tax { width: 6%; text-align: right; padding-right: 8px; }
     .col-amount { width: 12%; text-align: right; padding-right: 10px; font-weight: 500; }
@@ -99,10 +99,15 @@ function buildStatementHtml(
     .total-row .col-item { text-align: center; padding-left: 0; }
     .empty-row td { height: 36px; border-color: #e2e8f0; }
     .empty-row:hover { background: transparent; }
-    .entas-sheet .col-item { width: 15%; text-align: center; }
-    .entas-sheet .col-requester { width: 14%; text-align: center; }
-    .entas-sheet .col-location { width: 22%; text-align: center; }
-    .entas-sheet .col-qty { text-align: center; }
+    .entas-sheet .col-month { width: 5%; }
+    .entas-sheet .col-day { width: 5%; }
+    .entas-sheet .col-item { width: 20%; text-align: center; }
+    .entas-sheet .col-requester { width: 21%; text-align: center; }
+    .entas-sheet .col-location { width: 21%; text-align: center; }
+    .entas-sheet .col-qty { width: 4%; text-align: center; }
+    .entas-sheet .col-supply { width: 9%; }
+    .entas-sheet .col-tax { width: 5%; }
+    .entas-sheet .col-amount { width: 11%; }
     @page { size: A4; margin: 15mm; }
     @media print {
       body { background: #fff; padding: 0; margin: 0; font-size: 12pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -361,6 +366,188 @@ function useOrdersSummary(dateFrom: string | undefined, dateTo: string | undefin
 
 const CLIENT_PRIORITY_ORDER = ['노랑풍선', '엔타스', '하나투어비즈니스', '하나투어ITC', '경복궁면세점', '준제이엔씨']
 
+/** 노랑풍선 명세서 규칙: F=발송장소+세부주소, K=특이사항, 발주자=담당자, G=지점명/본인결혼 */
+function yellowBalloonOrderToRow(o: Order, no: number, ordererName?: string): (string | number)[] {
+  const item = (o.item ?? '').trim()
+  const location = (o.location ?? '').trim()
+  const detailAddr = (o.delivery_detail_address ?? '').trim()
+  const 배송지 = detailAddr ? `${location} ${detailAddr}`.trim() : location
+  const branch = (o.branch ?? '').trim()
+  const client = (o.client ?? '').trim()
+  const is임직원 = /노랑풍선/.test(branch || client) || /본인결혼/.test(o.notes ?? '')
+  let 상품명 = item
+  if (/결혼|결혼화환/.test(item)) 상품명 = '결혼화환'
+  else if (/장례식장/.test(location)) 상품명 = '근조화환'
+  const price = o.price ?? 0
+  const qty = o.quantity ?? 1
+  const amount = price * qty
+  const gCol = is임직원 ? '본인결혼' : (branch || client || '')
+  return ['', no, o.date ?? '', 상품명, ordererName?.trim() || '이상훈', 배송지, gCol, o.request_department ?? '', o.recipient ?? '', amount, o.notes ?? '']
+}
+
+/** 노랑풍선 주문 목록을 템플릿 블록별로 분리 (거래처 4~24, 임직원 27~31, 사내조경 32). 특이사항에 "본인결혼" 있으면 임직원 블록·사유 "본인결혼" */
+function ordersToSectionsYellowBalloon(list: Order[]): { 장례식: Order[]; 결혼식: Order[]; 기타: Order[] } {
+  const sections: { 장례식: Order[]; 결혼식: Order[]; 기타: Order[] } = { 장례식: [], 결혼식: [], 기타: [] }
+  const branchOrClient = (o: Order) => (o.branch ?? '') + (o.client ?? '')
+  const itemOrNotes = (o: Order) => (o.item ?? '') + (o.notes ?? '')
+  for (const o of list) {
+    if (/노랑풍선/.test(branchOrClient(o)) || /본인결혼/.test(o.notes ?? '')) {
+      sections.결혼식.push(o)
+      continue
+    }
+    const g = itemOrNotes(o)
+    if (/기타|조화|조경/.test(g)) sections.기타.push(o)
+    else sections.장례식.push(o)
+  }
+  return sections
+}
+
+const 거래처_시작 = 4
+const 거래처_끝 = 24
+const 임직원_시작 = 27
+const 임직원_끝 = 31
+const 사내조경_행 = 32
+
+function colToLetter(col: number): string {
+  if (col <= 26) return String.fromCharCode(64 + col)
+  return String.fromCharCode(64 + Math.floor((col - 1) / 26)) + String.fromCharCode(64 + ((col - 1) % 26) + 1)
+}
+
+/** 템플릿 셀은 값만 수정하고 기존 스타일(s)은 유지 */
+function setCell(ws: XLSX.WorkSheet, row: number, col: number, value: string | number | null | undefined): void {
+  if (value == null || value === '') return
+  const ref = colToLetter(col) + row
+  const t = typeof value === 'number' ? 'n' : 's'
+  const existing = ws[ref] as { t?: string; v?: unknown; s?: unknown } | undefined
+  if (existing && 's' in existing && existing.s !== undefined) {
+    existing.t = t
+    existing.v = value
+  } else {
+    ws[ref] = { t, v: value }
+  }
+}
+
+/** 템플릿 데이터 영역(거래처·임직원·사내조경) 셀 값만 비우기 — 스타일은 유지 */
+function clearYellowBalloonDataRows(ws: XLSX.WorkSheet): void {
+  const rows = [
+    ...Array.from({ length: 거래처_끝 - 거래처_시작 + 1 }, (_, i) => 거래처_시작 + i),
+    ...Array.from({ length: 임직원_끝 - 임직원_시작 + 1 }, (_, i) => 임직원_시작 + i),
+    사내조경_행,
+  ]
+  for (const r of rows) {
+    for (let c = 1; c <= 11; c++) {
+      const ref = colToLetter(c) + r
+      const existing = ws[ref] as { t?: string; v?: unknown; s?: unknown } | undefined
+      if (existing && 's' in existing && existing.s !== undefined) {
+        existing.t = 's'
+        existing.v = ''
+      } else if (ws[ref]) {
+        ws[ref] = { t: 's', v: '' }
+      }
+    }
+  }
+}
+
+/** 한 건을 템플릿 한 행에 쓸 값으로 변환. F=발송장소+세부주소, K=특이사항 */
+function orderToCellValues(o: Order, section: '장례식' | '결혼식' | '기타', ordererName?: string): { 구분: string; no: number; date: string; 상품명: string; 발주자: string; 배송지: string; gCol: string; 요청팀: string; 수령인: string; 금액: number; 비고: string } {
+  const item = (o.item ?? '').trim()
+  const location = (o.location ?? '').trim()
+  const detailAddr = (o.delivery_detail_address ?? '').trim()
+  const 배송지 = detailAddr ? `${location} ${detailAddr}`.trim() : location
+  const branch = (o.branch ?? '').trim()
+  const client = (o.client ?? '').trim()
+  const is결혼식 = section === '결혼식'
+  let 상품명 = item
+  if (/결혼|결혼화환/.test(item)) 상품명 = '결혼화환'
+  else if (/장례식장/.test(location)) 상품명 = '근조화환'
+  const price = o.price ?? 0
+  const qty = o.quantity ?? 1
+  const 금액 = price * qty
+  const gCol = is결혼식 ? '본인결혼' : (branch || client || '')
+  return {
+    구분: section === '장례식' ? '거래처' : '',
+    no: 0,
+    date: o.date ?? '', // 배달일자 = 배송일(date)
+    상품명,
+    발주자: ordererName?.trim() || '이상훈',
+    배송지,
+    gCol,
+    요청팀: o.request_department ?? '',
+    수령인: o.recipient ?? '',
+    금액,
+    비고: o.notes ?? '',
+  }
+}
+
+/** 템플릿 시트에 블록별로 행 채우기 (fill_month_sheet와 동일 레이아웃) */
+function fillYellowBalloonSheet(ws: XLSX.WorkSheet, ordersBySection: { 장례식: Order[]; 결혼식: Order[]; 기타: Order[] }, month: number, ordererName?: string): void {
+  clearYellowBalloonDataRows(ws)
+  setCell(ws, 1, 1, ` 2026년 ${month}월 경조화환 발주 내역 `)
+  const writeRow = (rowIndex: number, o: Order, no: number, writeA: boolean, section: '장례식' | '결혼식' | '기타') => {
+    const v = orderToCellValues(o, section, ordererName)
+    v.no = no
+    if (writeA) setCell(ws, rowIndex, 1, v.구분)
+    setCell(ws, rowIndex, 2, v.no)
+    setCell(ws, rowIndex, 3, v.date)
+    setCell(ws, rowIndex, 4, v.상품명)
+    setCell(ws, rowIndex, 5, v.발주자)
+    setCell(ws, rowIndex, 6, v.배송지)
+    setCell(ws, rowIndex, 7, v.gCol)
+    setCell(ws, rowIndex, 8, v.요청팀)
+    setCell(ws, rowIndex, 9, v.수령인)
+    setCell(ws, rowIndex, 10, v.금액)
+    setCell(ws, rowIndex, 11, v.비고)
+  }
+  const 장례식 = ordersBySection.장례식 ?? []
+  for (let i = 0; i < 장례식.length && 거래처_시작 + i <= 거래처_끝; i++) {
+    writeRow(거래처_시작 + i, 장례식[i], i + 1, i === 0, '장례식')
+  }
+  const 결혼식 = ordersBySection.결혼식 ?? []
+  for (let i = 0; i < 결혼식.length && 임직원_시작 + i <= 임직원_끝; i++) {
+    writeRow(임직원_시작 + i, 결혼식[i], i + 1, false, '결혼식')
+  }
+  const 기타 = ordersBySection.기타 ?? []
+  if (기타.length > 0) writeRow(사내조경_행, 기타[0], 1, false, '기타')
+}
+
+/** 시트 이름이 "N월" 형식인지 (공백·전각 숫자 허용) */
+function isMonthSheetName(name: string): boolean {
+  const t = String(name).trim()
+  return /^\d+월$/.test(t) || /[\d０-９]+월/.test(t)
+}
+
+/** 노랑풍선 엑셀 워크북 생성: 템플릿 있으면 해당 월 시트(또는 첫 번째 N월 시트)에 내용만 채우고, 없으면 flat 시트로 생성. 발주자=ordererName(미입력 시 이상훈) */
+async function buildYellowBalloonWorkbook(list: Order[], dateFrom: string, dateTo: string, ordererName?: string): Promise<{ wb: XLSX.WorkBook; fileName: string }> {
+  const month = parseInt(dateFrom.slice(5, 7), 10) || 1
+  const sheetName = `${month}월`
+  const 발주자 = ordererName?.trim() || '이상훈'
+  try {
+    // 캐시 방지: 항상 최신 템플릿 받기 (과거 잘못된 양식이 캐시돼 있으면 무시)
+    const res = await fetch(`/norang_template.xlsx?t=${Date.now()}`, { cache: 'no-store' })
+    if (res.ok) {
+      const ab = await res.arrayBuffer()
+      const wb = XLSX.read(ab, { type: 'array', cellStyles: true })
+      // 해당 월 시트가 있으면 사용, 없으면 첫 번째 "N월" 형식 시트 사용 (템플릿에 1월만 있어도 모든 월 데이터 채움)
+      const targetSheet = wb.SheetNames.includes(sheetName)
+        ? sheetName
+        : wb.SheetNames.find((n) => isMonthSheetName(n))
+      if (targetSheet) {
+        const ws = wb.Sheets[targetSheet]
+        fillYellowBalloonSheet(ws, ordersToSectionsYellowBalloon(list), month, 발주자)
+        return { wb, fileName: `2026년_${month}월_채움_결과.xlsx` }
+      }
+    }
+  } catch (_) {}
+  const headers = ['구분', 'No', '배달일자', '상품명', '발주자', '배송지', '거래처 명', '요청팀', '수령인', '금액', '비고']
+  const dataRows: (string | number)[][] = list.map((o, i) => yellowBalloonOrderToRow(o, i + 1, 발주자))
+  const totalAmount = dataRows.reduce((s, r) => s + (Number(r[9]) || 0), 0)
+  dataRows.push(['', '', '', '', '', '', '소 계', '', '', totalAmount, ''])
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, '경조화환발주내역')
+  return { wb, fileName: `2026년_경조화환발주내역_성원플라워_${dateFrom}_${dateTo}.xlsx` }
+}
+
 function useClientList() {
   const [clients, setClients] = useState<string[]>([])
   useEffect(() => {
@@ -470,6 +657,8 @@ const emptyForm = {
   provider: '',
   partner: '',
   location: '',
+  deliveryDetailAddress: '',
+  sender: '',
   region: '',
   notes: '',
   price: '',
@@ -803,43 +992,21 @@ export default function App() {
   const handleYellowBalloonExcel = async () => {
     if (!supabase || !yellowBalloonDateFrom.trim() || !yellowBalloonDateTo.trim()) return
     setYellowBalloonExportLoading(true)
-    const { data: rows, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('client', '노랑풍선')
-      .gte('date', yellowBalloonDateFrom.trim())
-      .lte('date', yellowBalloonDateTo.trim())
-      .order('date', { ascending: true })
+    const [ordersRes, contactRes] = await Promise.all([
+      supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', yellowBalloonDateFrom.trim()).lte('date', yellowBalloonDateTo.trim()).order('date', { ascending: true }),
+      supabase.from('client_contacts').select('contact_name').eq('client_name', '노랑풍선').maybeSingle(),
+    ])
     setYellowBalloonExportLoading(false)
+    const { data: rows, error } = ordersRes
     if (error) return
     const list = (rows ?? []) as Order[]
-    const headers = ['구분', 'No', '배달일자', '상품명', '발주자', '배송지', '거래처 명', '요청팀', '수령인', '금액', '비고']
-    const dataRows: (string | number)[][] = list.map((o, i) => {
-      const price = o.price ?? 0
-      const qty = o.quantity ?? 1
-      const amount = price * qty
-      return [
-        '', // 구분
-        i + 1, // No
-        o.date ?? '', // 배달일자
-        o.item ?? '', // 상품명
-        '', // 발주자 (미입력)
-        o.location ?? '', // 배송지
-        o.client ?? '', // 거래처 명
-        o.request_department ?? '', // 요청팀
-        o.recipient ?? '', // 수령인
-        amount, // 금액
-        o.notes ?? '', // 비고
-      ]
-    })
-    const totalAmount = dataRows.reduce((s, r) => s + (Number(r[9]) || 0), 0)
-    dataRows.push(['', '', '', '', '', '', '소 계', '', '', totalAmount, ''])
-    const sheetData = [headers, ...dataRows]
-    const ws = XLSX.utils.aoa_to_sheet(sheetData)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, '경조화환발주내역')
-    const fileName = `2026년_경조화환발주내역_성원플라워_${yellowBalloonDateFrom}_${yellowBalloonDateTo}.xlsx`
-    XLSX.writeFile(wb, fileName)
+    const ordererName = (contactRes.data as { contact_name?: string } | null)?.contact_name?.trim() || undefined
+    try {
+      const { wb, fileName } = await buildYellowBalloonWorkbook(list, yellowBalloonDateFrom.trim(), yellowBalloonDateTo.trim(), ordererName)
+      XLSX.writeFile(wb, fileName)
+    } catch (e) {
+      alert('내보내기 실패. 템플릿(public/norang_template.xlsx) 확인 후 다시 시도해 주세요.')
+    }
   }
 
   const handleStatementExport = async () => {
@@ -881,29 +1048,17 @@ export default function App() {
     if (exportFormat === 'yellow_balloon') {
       if (!supabase) return
       setYellowBalloonExportLoading(true)
-      const { data: rows, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('client', '노랑풍선')
-        .gte('date', dateFrom)
-        .lte('date', dateTo)
-        .order('date', { ascending: true })
+      const [ordersRes, contactRes] = await Promise.all([
+        supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: true }),
+        supabase.from('client_contacts').select('contact_name').eq('client_name', '노랑풍선').maybeSingle(),
+      ])
       setYellowBalloonExportLoading(false)
+      const { data: rows, error } = ordersRes
       if (error) return
       const list = (rows ?? []) as Order[]
-      const headers = ['구분', 'No', '배달일자', '상품명', '발주자', '배송지', '거래처 명', '요청팀', '수령인', '금액', '비고']
-      const dataRows: (string | number)[][] = list.map((o, i) => {
-        const price = o.price ?? 0
-        const qty = o.quantity ?? 1
-        const amount = price * qty
-        return ['', i + 1, o.date ?? '', o.item ?? '', '', o.location ?? '', o.client ?? '', o.request_department ?? '', o.recipient ?? '', amount, o.notes ?? '']
-      })
-      const totalAmount = dataRows.reduce((s, r) => s + (Number(r[9]) || 0), 0)
-      dataRows.push(['', '', '', '', '', '', '소 계', '', '', totalAmount, ''])
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows])
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, '경조화환발주내역')
-      XLSX.writeFile(wb, `2026년_경조화환발주내역_성원플라워_${dateFrom}_${dateTo}.xlsx`)
+      const ordererName = (contactRes.data as { contact_name?: string } | null)?.contact_name?.trim() || undefined
+      const { wb, fileName } = await buildYellowBalloonWorkbook(list, dateFrom, dateTo, ordererName)
+      XLSX.writeFile(wb, fileName)
       return
     }
     if (exportFormat === 'entas_statement') {
@@ -983,22 +1138,17 @@ export default function App() {
       a.click()
       URL.revokeObjectURL(url)
     } else if (exportFormat === 'yellow_balloon') {
-      const { data: rows, error } = await supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: true })
+      const [ordersRes, contactRes] = await Promise.all([
+        supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: true }),
+        supabase.from('client_contacts').select('contact_name').eq('client_name', '노랑풍선').maybeSingle(),
+      ])
       setStatementExportLoading(false)
+      const { data: rows, error } = ordersRes
       if (error) return
       const list = (rows ?? []) as Order[]
-      const headers = ['구분', 'No', '배달일자', '상품명', '발주자', '배송지', '거래처 명', '요청팀', '수령인', '금액', '비고']
-      const dataRows: (string | number)[][] = list.map((o, i) => {
-        const price = o.price ?? 0
-        const qty = o.quantity ?? 1
-        return ['', i + 1, o.date ?? '', o.item ?? '', '', o.location ?? '', o.client ?? '', o.request_department ?? '', o.recipient ?? '', price * qty, o.notes ?? '']
-      })
-      const totalAmount = dataRows.reduce((s, r) => s + (Number(r[9]) || 0), 0)
-      dataRows.push(['', '', '', '', '', '', '소 계', '', '', totalAmount, ''])
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows])
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, '경조화환발주내역')
-      XLSX.writeFile(wb, `2026년_경조화환발주내역_성원플라워_${dateFrom}_${dateTo}.xlsx`)
+      const ordererName = (contactRes.data as { contact_name?: string } | null)?.contact_name?.trim() || undefined
+      const { wb, fileName } = await buildYellowBalloonWorkbook(list, dateFrom, dateTo, ordererName)
+      XLSX.writeFile(wb, fileName)
     } else {
       const { data: rows, error } = await supabase.from('orders').select('*').eq('client', client).gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: true })
       setStatementExportLoading(false)
@@ -1253,6 +1403,8 @@ export default function App() {
       provider: row.provider ?? '',
       partner: row.partner ?? '',
       location: row.location ?? '',
+      deliveryDetailAddress: row.delivery_detail_address ?? '',
+      sender: row.sender ?? '',
       region: row.region ?? '',
       notes: row.notes ?? '',
       price: row.price != null ? String(row.price) : '',
@@ -1306,11 +1458,14 @@ export default function App() {
       date: form.date.trim() || getTodayISO(),
       client: form.client.trim() || null,
       branch: form.branch.trim() || null,
+      request_department: form.requestDepartment.trim() || null,
       item: form.item.trim() || null,
       recipient: form.recipient.trim() || null,
       provider: form.provider.trim() || null,
       partner: form.partner.trim() || null,
       location: form.location.trim() || null,
+      delivery_detail_address: form.deliveryDetailAddress.trim() || null,
+      sender: form.sender.trim() || null,
       region: form.region.trim() || null,
       notes: form.notes.trim() || null,
       price,
@@ -1665,6 +1820,16 @@ export default function App() {
               <input type="text" value={form.notes} onChange={(e) => updateForm('notes', e.target.value)} placeholder="특이사항" style={inputStyle} />
             </label>
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10, width: '100%', minWidth: 0 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>배송 세부 주소</span>
+              <input type="text" value={form.deliveryDetailAddress} onChange={(e) => updateForm('deliveryDetailAddress', e.target.value)} placeholder="배송 세부 주소" style={inputStyle} />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>보내는 분</span>
+              <input type="text" value={form.sender} onChange={(e) => updateForm('sender', e.target.value)} placeholder="보내는 분" style={inputStyle} />
+            </label>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 56px 72px', gap: 8, marginBottom: 12, width: '100%', minWidth: 0 }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>판매가</span>
@@ -2010,6 +2175,8 @@ export default function App() {
                   <th style={{ ...thStyle, background: '#f1f5f9', width: 293 }}>배송사진</th>
                   <th style={{ ...thStyle, background: '#f1f5f9', width: 90 }}>저장</th>
                   <th style={{ ...thStyle, minWidth: 130 }}>발송장소</th>
+                  <th style={thStyle}>세부주소</th>
+                  <th style={thStyle}>보내는 분</th>
                   <th style={thStyle}>지역</th>
                   <th style={thStyle}>특이사항</th>
                   <th style={thStyle}>판매가</th>
@@ -2121,6 +2288,8 @@ export default function App() {
                         {savedRowId === row.id && <span style={{ marginLeft: 6, fontSize: 12, color: '#047857', fontWeight: 600 }}>저장됨</span>}
                       </td>
                       <td style={tdStyle}>{row.location ?? '-'}</td>
+                      <td style={tdStyle}>{row.delivery_detail_address ?? '-'}</td>
+                      <td style={tdStyle}>{row.sender ?? '-'}</td>
                       <td style={tdStyle}>{row.region ?? '-'}</td>
                       <td style={tdStyle}>{row.notes ?? '-'}</td>
                       <td style={tdStyle}>{formatNum(row.price)}</td>
