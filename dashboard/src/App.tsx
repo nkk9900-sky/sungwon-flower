@@ -59,19 +59,17 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
   const 임직원Rows = 임직원List.map((o, i) => toRow(o, i + 1, true))
   while (임직원Rows.length < 5) 임직원Rows.push(['', '', '', '', '', '', '', '', '', '', ''])
 
-  // B1에 채움 표시 + 생성 시각 (다운로드할 때마다 달라져야 함 → 새 파일인지 확인용)
+  // B1에 채움 표시 + 생성 시각 (새 파일 확인용)
   const generatedAt = new Date().toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'medium' })
   ws['B1'] = { t: 's', v: `성원플라워 채움 (${orders.length}건) 생성 ${generatedAt}` }
-  // 기존 데이터 구간 비우기 (템플릿에 남은 과거 데이터 제거)
+  // 템플릿 구조: 3행=거래처 헤더, 4~24행=거래처 데이터(21행), 26행=임직원 헤더, 27~31행=임직원(5행)
   const emptyRow: (string | number)[] = ['', '', '', '', '', '', '', '', '', '', '']
-  const empty19 = Array(19).fill(null).map(() => [...emptyRow])
+  const empty21 = Array(21).fill(null).map(() => [...emptyRow])
   const empty5 = Array(5).fill(null).map(() => [...emptyRow])
-  XLSX.utils.sheet_add_aoa(ws, empty19, { origin: 'B3' })
-  XLSX.utils.sheet_add_aoa(ws, empty5, { origin: 'B24' })
-  // 최신 주문으로 채우기
-  const 거래처19 = 거래처Rows.slice(0, 19)
-  XLSX.utils.sheet_add_aoa(ws, 거래처19, { origin: 'B3' })
-  XLSX.utils.sheet_add_aoa(ws, 임직원Rows, { origin: 'B24' })
+  XLSX.utils.sheet_add_aoa(ws, empty21, { origin: 'B4' })
+  XLSX.utils.sheet_add_aoa(ws, empty5, { origin: 'B27' })
+  XLSX.utils.sheet_add_aoa(ws, 거래처Rows.slice(0, 21), { origin: 'B4' })
+  XLSX.utils.sheet_add_aoa(ws, 임직원Rows, { origin: 'B27' })
 
   // 시트 이름만 "26년 2월"로 변경하고 맨 앞으로
   const monthSheetName = `${yearShort}년 ${month}월`
