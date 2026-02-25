@@ -65,17 +65,16 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
     const v = typeof val === 'number' ? val : (val ?? '')
     ws[addr] = typeof v === 'number' ? { t: 'n', v } : { t: 's', v: String(v) }
   }
-  // 거래처 4~24행 (Excel 4행 = index 3)
-  for (let i = 0; i < 21; i++) {
+  // 템플릿 구조: 거래처 3~21행(19행), 22행 소계, 23행 헤더(사유), 임직원 24~28행
+  for (let i = 0; i < 19; i++) {
     const row = 거래처Rows[i]
-    for (let c = 0; c < row.length; c++) setCell(4 + i, c, row[c])
+    for (let c = 0; c < row.length; c++) setCell(3 + i, c, row[c])
   }
-  // 임직원 27~31행
   for (let i = 0; i < 5; i++) {
     const row = 임직원Rows[i]
-    for (let c = 0; c < row.length; c++) setCell(27 + i, c, row[c])
+    for (let c = 0; c < row.length; c++) setCell(24 + i, c, row[c])
   }
-  // A1만 채움 표시
+  // A1 또는 B1 채움 표시 (템플릿에 맞춤)
   const a1 = XLSX.utils.encode_cell({ r: 0, c: 0 })
   ws[a1] = { t: 's', v: `성원플라워 채움 (${orders.length}건)` }
 
@@ -144,10 +143,15 @@ function buildStatementHtml(
   const totalQty = rows.reduce((s, r) => s + r.qty, 0)
   const totalSupply = rows.reduce((s, r) => s + r.supply * r.qty, 0)
   const totalAmount = rows.reduce((s, r) => s + r.amount, 0)
+  const entasColWidths = ['5%', '5%', '20%', '21%', '20%', '4%', '9%', '5%', '11%']
+  const th = (i: number, label: string, cls: string) =>
+    kind === 'entas' ? `<th class="${cls}" style="width:${entasColWidths[i]}">${label}</th>` : `<th class="${cls}">${label}</th>`
+  const td = (i: number, content: string | number, cls: string) =>
+    kind === 'entas' ? `<td class="${cls}" style="width:${entasColWidths[i]}">${content}</td>` : `<td class="${cls}">${content}</td>`
   const rowHtml = rows
     .map(
       (r) =>
-        `<tr><td class="col-month num">${r.month}</td><td class="col-day num">${r.day}</td><td class="col-item">${r.item}</td><td class="col-requester">${r.requestCol}</td><td class="col-location">${r.location}</td><td class="col-qty num">${r.qty}</td><td class="col-supply num">${fmtNum(r.supply)}</td><td class="col-tax num">${r.tax}</td><td class="col-amount num">${fmtNum(r.amount)}</td></tr>`
+        `<tr>${td(0, r.month, 'col-month num')}${td(1, r.day, 'col-day num')}${td(2, r.item, 'col-item')}${td(3, r.requestCol, 'col-requester')}${td(4, r.location, 'col-location')}${td(5, r.qty, 'col-qty num')}${td(6, fmtNum(r.supply), 'col-supply num')}${td(7, r.tax, 'col-tax num')}${td(8, fmtNum(r.amount), 'col-amount num')}</tr>`
     )
     .join('')
   return `<!DOCTYPE html>
@@ -170,10 +174,10 @@ function buildStatementHtml(
     tbody tr:hover { background: #fafafa; }
     .col-month { width: 6%; text-align: center; }
     .col-day { width: 6%; text-align: center; }
-    .col-item { width: 9%; text-align: center; padding-left: 6px; padding-right: 6px; }
-    .col-requester { width: 14%; padding-left: 10px; }
-    .col-location { width: 27%; padding-left: 10px; text-align: center; }
-    .col-qty { width: 8%; text-align: center; padding-right: 10px; }
+    .col-item { width: 11%; text-align: center; padding-left: 6px; padding-right: 6px; }
+    .col-requester { width: 20%; padding-left: 10px; }
+    .col-location { width: 20%; padding-left: 10px; text-align: center; }
+    .col-qty { width: 5%; text-align: center; padding-right: 10px; }
     .col-supply { width: 11%; text-align: right; padding-right: 10px; }
     .col-tax { width: 6%; text-align: right; padding-right: 8px; }
     .col-amount { width: 12%; text-align: right; padding-right: 10px; font-weight: 500; }
@@ -183,10 +187,16 @@ function buildStatementHtml(
     .total-row .col-item { text-align: center; padding-left: 0; }
     .empty-row td { height: 36px; border-color: #e2e8f0; }
     .empty-row:hover { background: transparent; }
-    .entas-sheet .col-item { width: 15%; text-align: center; }
-    .entas-sheet .col-requester { width: 14%; text-align: center; }
-    .entas-sheet .col-location { width: 22%; text-align: center; }
-    .entas-sheet .col-qty { text-align: center; }
+    .entas-sheet .col-month { width: 5%; }
+    .entas-sheet .col-day { width: 5%; }
+    .entas-sheet .col-item { width: 20%; text-align: center; }
+    .entas-sheet .col-requester { width: 21%; text-align: center; }
+    .entas-sheet .col-location { width: 21%; text-align: center; }
+    .entas-sheet .col-qty { width: 4%; text-align: center; }
+    .entas-sheet .col-supply { width: 9%; }
+    .entas-sheet .col-tax { width: 5%; }
+    .entas-sheet .col-amount { width: 11%; }
+    .entas-sheet table { table-layout: fixed; }
     @page { size: A4; margin: 15mm; }
     @media print {
       body { background: #fff; padding: 0; margin: 0; font-size: 12pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -194,6 +204,15 @@ function buildStatementHtml(
       thead { display: table-header-group; }
       tr { page-break-inside: avoid; }
       tbody tr:hover { background: transparent; }
+      .entas-sheet .col-month { width: 5% !important; }
+      .entas-sheet .col-day { width: 5% !important; }
+      .entas-sheet .col-item { width: 20% !important; }
+      .entas-sheet .col-requester { width: 21% !important; }
+      .entas-sheet .col-location { width: 21% !important; }
+      .entas-sheet .col-qty { width: 4% !important; }
+      .entas-sheet .col-supply { width: 9% !important; }
+      .entas-sheet .col-tax { width: 5% !important; }
+      .entas-sheet .col-amount { width: 11% !important; }
     }
   </style>
 </head>
@@ -204,29 +223,28 @@ function buildStatementHtml(
       <div class="date">${esc(dateLabel)}</div>
       <div class="recipient">${esc(clientName)}</div>
     </div>
-    <table>
+    <table>${kind === 'entas' ? `
+      <colgroup>
+        <col style="width:5%"><col style="width:5%"><col style="width:20%"><col style="width:21%"><col style="width:20%"><col style="width:4%"><col style="width:9%"><col style="width:5%"><col style="width:11%">
+      </colgroup>` : ''}
       <thead>
         <tr>
-          <th class="col-month">월</th>
-          <th class="col-day">일</th>
-          <th class="col-item">품목</th>
-          <th class="col-requester">${requestColumnLabel}</th>
-          <th class="col-location">발송 장소</th>
-          <th class="col-qty">수량</th>
-          <th class="col-supply">공급가액</th>
-          <th class="col-tax">세액</th>
-          <th class="col-amount">금액</th>
+          ${th(0, '월', 'col-month')}
+          ${th(1, '일', 'col-day')}
+          ${th(2, '품목', 'col-item')}
+          ${th(3, requestColumnLabel, 'col-requester')}
+          ${th(4, '발송 장소', 'col-location')}
+          ${th(5, '수량', 'col-qty')}
+          ${th(6, '공급가액', 'col-supply')}
+          ${th(7, '세액', 'col-tax')}
+          ${th(8, '금액', 'col-amount')}
         </tr>
       </thead>
       <tbody>
         ${rowHtml}
-        <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr class="empty-row">${kind === 'entas' ? entasColWidths.map((w, i) => `<td style="width:${w}"></td>`).join('') : '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>'}</tr>
         <tr class="total-row">
-          <td colspan="5" class="col-item">계</td>
-          <td class="col-qty num">${totalQty}</td>
-          <td class="col-supply num">${fmtNum(totalSupply)}</td>
-          <td class="col-tax num">0</td>
-          <td class="col-amount num">${fmtNum(totalAmount)}</td>
+          ${kind === 'entas' ? `<td colspan="5" class="col-item" style="width:71%">계</td>${td(5, totalQty, 'col-qty num')}${td(6, fmtNum(totalSupply), 'col-supply num')}${td(7, '0', 'col-tax num')}${td(8, fmtNum(totalAmount), 'col-amount num')}` : `<td colspan="5" class="col-item">계</td><td class="col-qty num">${totalQty}</td><td class="col-supply num">${fmtNum(totalSupply)}</td><td class="col-tax num">0</td><td class="col-amount num">${fmtNum(totalAmount)}</td>`}
         </tr>
       </tbody>
     </table>
