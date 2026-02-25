@@ -59,8 +59,9 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
   const 임직원Rows = 임직원List.map((o, i) => toRow(o, i + 1, true))
   while (임직원Rows.length < 5) 임직원Rows.push(['', '', '', '', '', '', '', '', '', '', ''])
 
-  // B1에 채움 표시 (반드시 먼저)
-  ws['B1'] = { t: 's', v: `성원플라워 채움 (${orders.length}건)` }
+  // B1에 채움 표시 + 생성 시각 (다운로드할 때마다 달라져야 함 → 새 파일인지 확인용)
+  const generatedAt = new Date().toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'medium' })
+  ws['B1'] = { t: 's', v: `성원플라워 채움 (${orders.length}건) 생성 ${generatedAt}` }
   // 기존 데이터 구간 비우기 (템플릿에 남은 과거 데이터 제거)
   const emptyRow: (string | number)[] = ['', '', '', '', '', '', '', '', '', '', '']
   const empty19 = Array(19).fill(null).map(() => [...emptyRow])
@@ -2061,6 +2062,9 @@ export default function App() {
               <span style={{ fontSize: 12, color: searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient) ? '#334155' : '#94a3b8' }}>
                 {searchCondition === 'client' && searchClient ? (generalFormatClients.includes(searchClient) ? `거래처: ${searchClient}` : '일반 거래처만 해당. 검색 조건에서 선택 후 검색') : '검색 조건에서 거래처 선택 후 [검색]'}
               </span>
+            )}
+            {exportFormat === 'yellow_balloon' && (
+              <span style={{ fontSize: 11, color: '#0d9488' }}>※ 새 배포 적용 시: 파일명 끝에 숫자(예: _1739123456789.xlsx). (1)(2)(13) 붙으면 예전 버전입니다.</span>
             )}
             <button type="button" onClick={handleStatementExport} disabled={yellowBalloonExportLoading || statementExportLoading || (exportFormat === 'general' && !(searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient))) || (exportFormat === 'entas_statement' && !(searchCondition === 'client' && ENTAS_CLIENT_SET.has(searchClient)))} style={{ padding: '8px 16px', background: exportFormat === 'general' ? '#475569' : exportFormat === 'yellow_balloon' ? '#0d9488' : '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: yellowBalloonExportLoading || statementExportLoading ? 'wait' : 'pointer', fontWeight: 500 }}>
               {yellowBalloonExportLoading || statementExportLoading ? '생성 중…' : '다운로드'}
