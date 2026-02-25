@@ -20,7 +20,7 @@ function yellowBalloonProductName(o: Order): string {
 
 /** 노랑풍선 템플릿(norang_template.xlsx) 불러와서 해당 월 시트에 주문 채운 뒤 Blob 반환. 템플릿은 public/norang_template.xlsx 에 두세요. */
 async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, dateTo: string): Promise<Blob> {
-  const res = await fetch('/norang_template.xlsx')
+  const res = await fetch(`/norang_template.xlsx?t=${Date.now()}`, { cache: 'no-store', headers: { Pragma: 'no-cache', 'Cache-Control': 'no-cache' } })
   if (!res.ok) throw new Error('템플릿을 불러올 수 없습니다. dashboard/public 폴더에 norang_template.xlsx를 넣어 주세요.')
   const ab = await res.arrayBuffer()
   const wb = XLSX.read(ab, { type: 'array' })
@@ -915,7 +915,7 @@ export default function App() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `2026년_경조화환발주내역_성원플라워_${yellowBalloonDateFrom}_${yellowBalloonDateTo}.xlsx`
+      a.download = `경조화환발주내역_성원플라워_${yellowBalloonDateFrom}_${yellowBalloonDateTo}_${Date.now()}.xlsx`
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
@@ -991,7 +991,7 @@ export default function App() {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `2026년_경조화환발주내역_성원플라워_${rangeFrom}_${rangeTo}.xlsx`
+        a.download = `경조화환발주내역_성원플라워_${rangeFrom}_${rangeTo}_${Date.now()}.xlsx`
         a.click()
         URL.revokeObjectURL(url)
       } catch (err) {
@@ -1087,7 +1087,7 @@ export default function App() {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `2026년_경조화환발주내역_성원플라워_${dateFrom}_${dateTo}.xlsx`
+        a.download = `경조화환발주내역_성원플라워_${dateFrom}_${dateTo}_${Date.now()}.xlsx`
         a.click()
         URL.revokeObjectURL(url)
       } catch (err) {
@@ -2065,11 +2065,6 @@ export default function App() {
             <button type="button" onClick={handleStatementExport} disabled={yellowBalloonExportLoading || statementExportLoading || (exportFormat === 'general' && !(searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient))) || (exportFormat === 'entas_statement' && !(searchCondition === 'client' && ENTAS_CLIENT_SET.has(searchClient)))} style={{ padding: '8px 16px', background: exportFormat === 'general' ? '#475569' : exportFormat === 'yellow_balloon' ? '#0d9488' : '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: yellowBalloonExportLoading || statementExportLoading ? 'wait' : 'pointer', fontWeight: 500 }}>
               {yellowBalloonExportLoading || statementExportLoading ? '생성 중…' : '다운로드'}
             </button>
-            {exportFormat === 'yellow_balloon' && (
-              <a href="/norang_template.xlsx" download="노랑풍선_명세서_양식.xlsx" style={{ fontSize: 13, color: '#0d9488', textDecoration: 'underline' }} title="등록된 템플릿 파일을 그대로 받습니다. 데이터는 채우지 않습니다.">
-                양식만 받기
-              </a>
-            )}
             <button type="button" onClick={handleSendStatementToContact} disabled={yellowBalloonExportLoading || statementExportLoading || (exportFormat === 'general' && !(searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient))) || (exportFormat === 'entas_statement' && !(searchCondition === 'client' && ENTAS_CLIENT_SET.has(searchClient)))} style={{ padding: '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: yellowBalloonExportLoading || statementExportLoading ? 'wait' : 'pointer', fontWeight: 500 }} title="명세서를 다운로드한 뒤 담당자 이메일로 메일 쓰기를 엽니다. 첨부는 메일에서 직접 해 주세요.">
               담당자에게 보내기
             </button>
