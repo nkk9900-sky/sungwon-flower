@@ -61,7 +61,13 @@ async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, date
 
   // B1에 채움 표시 (반드시 먼저)
   ws['B1'] = { t: 's', v: `성원플라워 채움 (${orders.length}건)` }
-  // sheet_add_aoa로 B3·B24에 데이터 블록 덮어쓰기 (템플릿: 거래처 3~21행, 임직원 24~28행, B~L열)
+  // 기존 데이터 구간 비우기 (템플릿에 남은 과거 데이터 제거)
+  const emptyRow: (string | number)[] = ['', '', '', '', '', '', '', '', '', '', '']
+  const empty19 = Array(19).fill(null).map(() => [...emptyRow])
+  const empty5 = Array(5).fill(null).map(() => [...emptyRow])
+  XLSX.utils.sheet_add_aoa(ws, empty19, { origin: 'B3' })
+  XLSX.utils.sheet_add_aoa(ws, empty5, { origin: 'B24' })
+  // 최신 주문으로 채우기
   const 거래처19 = 거래처Rows.slice(0, 19)
   XLSX.utils.sheet_add_aoa(ws, 거래처19, { origin: 'B3' })
   XLSX.utils.sheet_add_aoa(ws, 임직원Rows, { origin: 'B24' })
@@ -919,9 +925,13 @@ export default function App() {
   }
 
   const handleStatementExport = async () => {
-    const dateFrom = appliedDateFrom?.trim() ?? ''
-    const dateTo = appliedDateTo?.trim() ?? ''
-    if (!dateFrom || !dateTo) {
+    const fromInput = (dateFrom ?? '').toString().trim()
+    const toInput = (dateTo ?? '').toString().trim()
+    const appliedFrom = appliedDateFrom?.trim() ?? ''
+    const appliedTo = appliedDateTo?.trim() ?? ''
+    const effFrom = appliedFrom || fromInput
+    const effTo = appliedTo || toInput
+    if (!effFrom || !effTo) {
       alert('먼저 날짜를 선택하고 [검색]을 실행해 주세요.')
       return
     }
@@ -937,19 +947,19 @@ export default function App() {
         .from('orders')
         .select('*')
         .eq('client', client)
-        .gte('date', dateFrom)
-        .lte('date', dateTo)
+        .gte('date', effFrom)
+        .lte('date', effTo)
         .order('date', { ascending: true })
       setStatementExportLoading(false)
       if (error) return
       const list = (rows ?? []) as Order[]
-      const dateLabel = dateFrom && dateTo ? `${dateFrom.replace(/-/g,'.')} ~ ${dateTo.replace(/-/g,'.')}` : dateFrom?.replace(/-/g, '.') ?? ''
+      const dateLabel = effFrom && effTo ? `${effFrom.replace(/-/g,'.')} ~ ${effTo.replace(/-/g,'.')}` : effFrom?.replace(/-/g, '.') ?? ''
       const html = buildStatementHtml(list, client, dateLabel, 'general')
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `거래명세표_${client}_${dateFrom}_${dateTo}.html`
+      a.download = `거래명세표_${client}_${effFrom}_${effTo}.html`
       a.click()
       URL.revokeObjectURL(url)
       return
@@ -958,22 +968,30 @@ export default function App() {
       if (!supabase) return
       setYellowBalloonExportLoading(true)
       try {
+        // 노랑풍선: 화면에 입력된 날짜 우선 사용 (검색 안 눌러도 다운로드 시 반영)
+        const rangeFrom = fromInput || appliedFrom
+        const rangeTo = toInput || appliedTo
+        if (!rangeFrom || !rangeTo) {
+          setYellowBalloonExportLoading(false)
+          alert('날짜 from / to 를 입력해 주세요.')
+          return
+        }
         const { data: rows, error } = await supabase
           .from('orders')
           .select('*')
           .eq('client', '노랑풍선')
-          .gte('date', dateFrom)
-          .lte('date', dateTo)
+          .gte('date', rangeFrom)
+          .lte('date', rangeTo)
           .order('date', { ascending: true })
         setYellowBalloonExportLoading(false)
         if (error) return
         const list = (rows ?? []) as Order[]
         if (list.length === 0) alert('선택한 기간에 노랑풍선 주문이 없습니다. 빈 양식으로 내려받습니다.')
-        const blob = await fillYellowBalloonTemplate(list, dateFrom, dateTo)
+        const blob = await fillYellowBalloonTemplate(list, rangeFrom, rangeTo)
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `2026년_경조화환발주내역_성원플라워_${dateFrom}_${dateTo}.xlsx`
+        a.download = `2026년_경조화환발주내역_성원플라워_${rangeFrom}_${rangeTo}.xlsx`
         a.click()
         URL.revokeObjectURL(url)
       } catch (err) {
@@ -994,19 +1012,19 @@ export default function App() {
         .from('orders')
         .select('*')
         .eq('client', entasClient)
-        .gte('date', dateFrom)
-        .lte('date', dateTo)
+        .gte('date', effFrom)
+        .lte('date', effTo)
         .order('date', { ascending: true })
       setStatementExportLoading(false)
       if (error) return
       const list = (rows ?? []) as Order[]
-      const dateLabel = dateFrom && dateTo ? `${dateFrom.replace(/-/g, '.')} ~ ${dateTo.replace(/-/g, '.')}` : dateFrom?.replace(/-/g, '.') ?? ''
+      const dateLabel = effFrom && effTo ? `${effFrom.replace(/-/g, '.')} ~ ${effTo.replace(/-/g, '.')}` : effFrom?.replace(/-/g, '.') ?? ''
       const html = buildStatementHtml(list, entasClient, dateLabel, 'entas')
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `거래명세표_${entasClient}_${dateFrom}_${dateTo}.html`
+      a.download = `거래명세표_${entasClient}_${effFrom}_${effTo}.html`
       a.click()
       URL.revokeObjectURL(url)
     }
@@ -2047,6 +2065,11 @@ export default function App() {
             <button type="button" onClick={handleStatementExport} disabled={yellowBalloonExportLoading || statementExportLoading || (exportFormat === 'general' && !(searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient))) || (exportFormat === 'entas_statement' && !(searchCondition === 'client' && ENTAS_CLIENT_SET.has(searchClient)))} style={{ padding: '8px 16px', background: exportFormat === 'general' ? '#475569' : exportFormat === 'yellow_balloon' ? '#0d9488' : '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: yellowBalloonExportLoading || statementExportLoading ? 'wait' : 'pointer', fontWeight: 500 }}>
               {yellowBalloonExportLoading || statementExportLoading ? '생성 중…' : '다운로드'}
             </button>
+            {exportFormat === 'yellow_balloon' && (
+              <a href="/norang_template.xlsx" download="노랑풍선_명세서_양식.xlsx" style={{ fontSize: 13, color: '#0d9488', textDecoration: 'underline' }} title="등록된 템플릿 파일을 그대로 받습니다. 데이터는 채우지 않습니다.">
+                양식만 받기
+              </a>
+            )}
             <button type="button" onClick={handleSendStatementToContact} disabled={yellowBalloonExportLoading || statementExportLoading || (exportFormat === 'general' && !(searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient))) || (exportFormat === 'entas_statement' && !(searchCondition === 'client' && ENTAS_CLIENT_SET.has(searchClient)))} style={{ padding: '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: yellowBalloonExportLoading || statementExportLoading ? 'wait' : 'pointer', fontWeight: 500 }} title="명세서를 다운로드한 뒤 담당자 이메일로 메일 쓰기를 엽니다. 첨부는 메일에서 직접 해 주세요.">
               담당자에게 보내기
             </button>
