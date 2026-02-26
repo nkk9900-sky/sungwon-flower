@@ -8,6 +8,82 @@ const ENTAS_CLIENT_SET = new Set(ENTAS_STATEMENT_CLIENTS as readonly string[])
 
 const CHOSUNG = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'
 
+/** 노랑풍선 명세서: 상품명 규칙 (계획서 5) */
+function yellowBalloonProductName(o: Order): string {
+  const item = (o.item ?? '').toLowerCase()
+  const notes = (o.notes ?? '').toLowerCase()
+  const loc = (o.location ?? '').toLowerCase()
+  if (item.includes('결혼') || notes.includes('결혼')) return '결혼화환'
+  if (loc.includes('장례') || loc.includes('장례식장')) return '근조화환'
+  return ''
+}
+
+/** 노랑풍선 템플릿(norang_template.xlsx) 불러와서 해당 월 시트에 주문 채운 뒤 Blob 반환. 템플릿은 public/norang_template.xlsx 에 두세요. */
+async function fillYellowBalloonTemplate(orders: Order[], dateFrom: string, dateTo: string): Promise<Blob> {
+  const res = await fetch(`/norang_template.xlsx?t=${Date.now()}`, { cache: 'no-store', headers: { Pragma: 'no-cache', 'Cache-Control': 'no-cache' } })
+  if (!res.ok) throw new Error('템플릿을 불러올 수 없습니다. dashboard/public 폴더에 norang_template.xlsx를 넣어 주세요.')
+  const ab = await res.arrayBuffer()
+  const wb = XLSX.read(ab, { type: 'array' })
+  const month = parseInt(dateFrom.slice(5, 7), 10)
+  const yearShort = dateFrom.slice(2, 4) // 2026-02-01 → "26"
+  // 템플릿의 첫 번째 시트에 채우고, 결과 시트 이름만 "26년 2월"로 저장 (시트 이름 검사 없음)
+  if (!wb.SheetNames.length) throw new Error('템플릿에 시트가 없습니다.')
+  const foundSheetName = wb.SheetNames[0]
+  const ws = wb.Sheets[foundSheetName]!
+
+  const isExecutive = (o: Order) => (o.branch ?? '').includes('노랑풍선') || (o.client ?? '').includes('노랑풍선')
+  const 거래처List = orders.filter((o) => !isExecutive(o)).slice(0, 21)
+  const 임직원List = orders.filter((o) => isExecutive(o)).slice(0, 5)
+
+  const toRow = (o: Order, no: number, isExec: boolean): (string | number)[] => {
+    const price = o.price ?? 0
+    const qty = o.quantity ?? 1
+    const amount = price * qty
+    return [
+      '', // 구분
+      no,
+      o.date ?? '', // 배달일자
+      yellowBalloonProductName(o), // 상품명
+      '이상훈', // 발주자
+      o.location ?? '', // 배송지
+      isExec ? '본인결혼' : (o.client ?? ''), // 거래처명 또는 사유
+      o.request_department ?? '', // 요청팀
+      o.recipient ?? '', // 수령인
+      amount, // 금액
+      '', // 비고(넣지 않음)
+    ]
+  }
+
+  const 거래처Rows = 거래처List.map((o, i) => toRow(o, i + 1, false))
+  while (거래처Rows.length < 21) 거래처Rows.push(['', '', '', '', '', '', '', '', '', '', ''])
+  const 임직원Rows = 임직원List.map((o, i) => toRow(o, i + 1, true))
+  while (임직원Rows.length < 5) 임직원Rows.push(['', '', '', '', '', '', '', '', '', '', ''])
+
+  // B1에 채움 표시 + 생성 시각 (새 파일 확인용)
+  const generatedAt = new Date().toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'medium' })
+  ws['B1'] = { t: 's', v: `성원플라워 채움 (${orders.length}건) 생성 ${generatedAt}` }
+  // 템플릿 구조: 3행=거래처 헤더, 4~24행=거래처 데이터(21행), 26행=임직원 헤더, 27~31행=임직원(5행)
+  const emptyRow: (string | number)[] = ['', '', '', '', '', '', '', '', '', '', '']
+  const empty21 = Array(21).fill(null).map(() => [...emptyRow])
+  const empty5 = Array(5).fill(null).map(() => [...emptyRow])
+  XLSX.utils.sheet_add_aoa(ws, empty21, { origin: 'B4' })
+  XLSX.utils.sheet_add_aoa(ws, empty5, { origin: 'B27' })
+  XLSX.utils.sheet_add_aoa(ws, 거래처Rows.slice(0, 21), { origin: 'B4' })
+  XLSX.utils.sheet_add_aoa(ws, 임직원Rows, { origin: 'B27' })
+
+  // 시트 이름만 "26년 2월"로 변경하고 맨 앞으로
+  const monthSheetName = `${yearShort}년 ${month}월`
+  delete wb.Sheets[foundSheetName]
+  wb.Sheets[monthSheetName] = ws
+  const nameIdx = wb.SheetNames.indexOf(foundSheetName)
+  if (nameIdx >= 0) wb.SheetNames[nameIdx] = monthSheetName
+  else wb.SheetNames.unshift(monthSheetName)
+  wb.SheetNames = [monthSheetName, ...wb.SheetNames.filter((s) => s !== monthSheetName)]
+
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+}
+
 /** 배송사진 업로드 전 브라우저에서 압축 (저장 공간·비용 절감) */
 async function compressImageForUpload(file: File): Promise<File> {
   try {
@@ -60,10 +136,15 @@ function buildStatementHtml(
   const totalQty = rows.reduce((s, r) => s + r.qty, 0)
   const totalSupply = rows.reduce((s, r) => s + r.supply * r.qty, 0)
   const totalAmount = rows.reduce((s, r) => s + r.amount, 0)
+  const entasColWidths = ['5%', '5%', '20%', '21%', '20%', '4%', '9%', '5%', '11%']
+  const th = (i: number, label: string, cls: string) =>
+    kind === 'entas' ? `<th class="${cls}" style="width:${entasColWidths[i]}">${label}</th>` : `<th class="${cls}">${label}</th>`
+  const td = (i: number, content: string | number, cls: string) =>
+    kind === 'entas' ? `<td class="${cls}" style="width:${entasColWidths[i]}">${content}</td>` : `<td class="${cls}">${content}</td>`
   const rowHtml = rows
     .map(
       (r) =>
-        `<tr><td class="col-month num">${r.month}</td><td class="col-day num">${r.day}</td><td class="col-item">${r.item}</td><td class="col-requester">${r.requestCol}</td><td class="col-location">${r.location}</td><td class="col-qty num">${r.qty}</td><td class="col-supply num">${fmtNum(r.supply)}</td><td class="col-tax num">${r.tax}</td><td class="col-amount num">${fmtNum(r.amount)}</td></tr>`
+        `<tr>${td(0, r.month, 'col-month num')}${td(1, r.day, 'col-day num')}${td(2, r.item, 'col-item')}${td(3, r.requestCol, 'col-requester')}${td(4, r.location, 'col-location')}${td(5, r.qty, 'col-qty num')}${td(6, fmtNum(r.supply), 'col-supply num')}${td(7, r.tax, 'col-tax num')}${td(8, fmtNum(r.amount), 'col-amount num')}</tr>`
     )
     .join('')
   return `<!DOCTYPE html>
@@ -108,6 +189,7 @@ function buildStatementHtml(
     .entas-sheet .col-supply { width: 9%; }
     .entas-sheet .col-tax { width: 5%; }
     .entas-sheet .col-amount { width: 11%; }
+    .entas-sheet table { table-layout: fixed; }
     @page { size: A4; margin: 15mm; }
     @media print {
       body { background: #fff; padding: 0; margin: 0; font-size: 12pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -115,6 +197,15 @@ function buildStatementHtml(
       thead { display: table-header-group; }
       tr { page-break-inside: avoid; }
       tbody tr:hover { background: transparent; }
+      .entas-sheet .col-month { width: 5% !important; }
+      .entas-sheet .col-day { width: 5% !important; }
+      .entas-sheet .col-item { width: 20% !important; }
+      .entas-sheet .col-requester { width: 21% !important; }
+      .entas-sheet .col-location { width: 21% !important; }
+      .entas-sheet .col-qty { width: 4% !important; }
+      .entas-sheet .col-supply { width: 9% !important; }
+      .entas-sheet .col-tax { width: 5% !important; }
+      .entas-sheet .col-amount { width: 11% !important; }
     }
   </style>
 </head>
@@ -125,29 +216,28 @@ function buildStatementHtml(
       <div class="date">${esc(dateLabel)}</div>
       <div class="recipient">${esc(clientName)}</div>
     </div>
-    <table>
+    <table>${kind === 'entas' ? `
+      <colgroup>
+        <col style="width:5%"><col style="width:5%"><col style="width:20%"><col style="width:21%"><col style="width:20%"><col style="width:4%"><col style="width:9%"><col style="width:5%"><col style="width:11%">
+      </colgroup>` : ''}
       <thead>
         <tr>
-          <th class="col-month">월</th>
-          <th class="col-day">일</th>
-          <th class="col-item">품목</th>
-          <th class="col-requester">${requestColumnLabel}</th>
-          <th class="col-location">발송 장소</th>
-          <th class="col-qty">수량</th>
-          <th class="col-supply">공급가액</th>
-          <th class="col-tax">세액</th>
-          <th class="col-amount">금액</th>
+          ${th(0, '월', 'col-month')}
+          ${th(1, '일', 'col-day')}
+          ${th(2, '품목', 'col-item')}
+          ${th(3, requestColumnLabel, 'col-requester')}
+          ${th(4, '발송 장소', 'col-location')}
+          ${th(5, '수량', 'col-qty')}
+          ${th(6, '공급가액', 'col-supply')}
+          ${th(7, '세액', 'col-tax')}
+          ${th(8, '금액', 'col-amount')}
         </tr>
       </thead>
       <tbody>
         ${rowHtml}
-        <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr class="empty-row">${kind === 'entas' ? entasColWidths.map((w, i) => `<td style="width:${w}"></td>`).join('') : '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>'}</tr>
         <tr class="total-row">
-          <td colspan="5" class="col-item">계</td>
-          <td class="col-qty num">${totalQty}</td>
-          <td class="col-supply num">${fmtNum(totalSupply)}</td>
-          <td class="col-tax num">0</td>
-          <td class="col-amount num">${fmtNum(totalAmount)}</td>
+          ${kind === 'entas' ? `<td colspan="5" class="col-item" style="width:71%">계</td>${td(5, totalQty, 'col-qty num')}${td(6, fmtNum(totalSupply), 'col-supply num')}${td(7, '0', 'col-tax num')}${td(8, fmtNum(totalAmount), 'col-amount num')}` : `<td colspan="5" class="col-item">계</td><td class="col-qty num">${totalQty}</td><td class="col-supply num">${fmtNum(totalSupply)}</td><td class="col-tax num">0</td><td class="col-amount num">${fmtNum(totalAmount)}</td>`}
         </tr>
       </tbody>
     </table>
@@ -1010,9 +1100,13 @@ export default function App() {
   }
 
   const handleStatementExport = async () => {
-    const dateFrom = appliedDateFrom?.trim() ?? ''
-    const dateTo = appliedDateTo?.trim() ?? ''
-    if (!dateFrom || !dateTo) {
+    const fromInput = (dateFrom ?? '').toString().trim()
+    const toInput = (dateTo ?? '').toString().trim()
+    const appliedFrom = appliedDateFrom?.trim() ?? ''
+    const appliedTo = appliedDateTo?.trim() ?? ''
+    const effFrom = appliedFrom || fromInput
+    const effTo = appliedTo || toInput
+    if (!effFrom || !effTo) {
       alert('먼저 날짜를 선택하고 [검색]을 실행해 주세요.')
       return
     }
@@ -1028,19 +1122,19 @@ export default function App() {
         .from('orders')
         .select('*')
         .eq('client', client)
-        .gte('date', dateFrom)
-        .lte('date', dateTo)
+        .gte('date', effFrom)
+        .lte('date', effTo)
         .order('date', { ascending: true })
       setStatementExportLoading(false)
       if (error) return
       const list = (rows ?? []) as Order[]
-      const dateLabel = dateFrom && dateTo ? `${dateFrom.replace(/-/g,'.')} ~ ${dateTo.replace(/-/g,'.')}` : dateFrom?.replace(/-/g, '.') ?? ''
+      const dateLabel = effFrom && effTo ? `${effFrom.replace(/-/g,'.')} ~ ${effTo.replace(/-/g,'.')}` : effFrom?.replace(/-/g, '.') ?? ''
       const html = buildStatementHtml(list, client, dateLabel, 'general')
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `거래명세표_${client}_${dateFrom}_${dateTo}.html`
+      a.download = `거래명세표_${client}_${effFrom}_${effTo}.html`
       a.click()
       URL.revokeObjectURL(url)
       return
@@ -1073,19 +1167,19 @@ export default function App() {
         .from('orders')
         .select('*')
         .eq('client', entasClient)
-        .gte('date', dateFrom)
-        .lte('date', dateTo)
+        .gte('date', effFrom)
+        .lte('date', effTo)
         .order('date', { ascending: true })
       setStatementExportLoading(false)
       if (error) return
       const list = (rows ?? []) as Order[]
-      const dateLabel = dateFrom && dateTo ? `${dateFrom.replace(/-/g, '.')} ~ ${dateTo.replace(/-/g, '.')}` : dateFrom?.replace(/-/g, '.') ?? ''
+      const dateLabel = effFrom && effTo ? `${effFrom.replace(/-/g, '.')} ~ ${effTo.replace(/-/g, '.')}` : effFrom?.replace(/-/g, '.') ?? ''
       const html = buildStatementHtml(list, entasClient, dateLabel, 'entas')
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `거래명세표_${entasClient}_${dateFrom}_${dateTo}.html`
+      a.download = `거래명세표_${entasClient}_${effFrom}_${effTo}.html`
       a.click()
       URL.revokeObjectURL(url)
     }
@@ -2131,6 +2225,9 @@ export default function App() {
               <span style={{ fontSize: 12, color: searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient) ? '#334155' : '#94a3b8' }}>
                 {searchCondition === 'client' && searchClient ? (generalFormatClients.includes(searchClient) ? `거래처: ${searchClient}` : '일반 거래처만 해당. 검색 조건에서 선택 후 검색') : '검색 조건에서 거래처 선택 후 [검색]'}
               </span>
+            )}
+            {exportFormat === 'yellow_balloon' && (
+              <span style={{ fontSize: 11, color: '#0d9488' }}>※ 새 배포 적용 시: 파일명 끝에 숫자(예: _1739123456789.xlsx). (1)(2)(13) 붙으면 예전 버전입니다.</span>
             )}
             <button type="button" onClick={handleStatementExport} disabled={yellowBalloonExportLoading || statementExportLoading || (exportFormat === 'general' && !(searchCondition === 'client' && searchClient && generalFormatClients.includes(searchClient))) || (exportFormat === 'entas_statement' && !(searchCondition === 'client' && ENTAS_CLIENT_SET.has(searchClient)))} style={{ padding: '8px 16px', background: exportFormat === 'general' ? '#475569' : exportFormat === 'yellow_balloon' ? '#0d9488' : '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: yellowBalloonExportLoading || statementExportLoading ? 'wait' : 'pointer', fontWeight: 500 }}>
               {yellowBalloonExportLoading || statementExportLoading ? '생성 중…' : '다운로드'}
