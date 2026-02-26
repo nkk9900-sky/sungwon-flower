@@ -1902,41 +1902,35 @@ export default function App() {
               <input type="date" value={backupDateTo} onChange={(e) => setBackupDateTo(e.target.value)} style={{ padding: '5px 8px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12 }} />
             </div>
           </div>
-          <div style={{ ...cardStyle, minWidth: 260, padding: '10px 14px' }}>
-            <h2 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 600 }}>주문 자동 채우기</h2>
-            <p style={{ margin: '0 0 6px', fontSize: 12, color: '#64748b' }}>URL·텍스트·캡처를 붙여넣고 버튼을 누르면 주문 등록 폼이 채워집니다.</p>
-            <textarea
-              value={textFillValue}
-              onChange={(e) => {
-                const v = e.target.value
-                setTextFillValue(v)
-                setUrlFillValue(v)
-              }}
-              onPaste={handleImagePaste}
-              placeholder="URL 또는 품의/주문 메시지 붙여넣기 (캡처는 Ctrl+V)"
-              rows={3}
-              style={{ width: '100%', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12, resize: 'vertical', minHeight: 60 }}
-            />
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
-              <input type="file" accept="image/*" onChange={handleImageFileSelect} style={{ fontSize: 11 }} />
-              <button type="button" onClick={handleAutoFill} style={{ padding: '6px 10px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>
-                자동으로 채우기
-              </button>
-            </div>
-            {imagePreviewUrl && (
-              <p style={{ margin: '4px 0 0', fontSize: 11, color: '#64748b' }}>캡처 이미지 인식 준비됨</p>
-            )}
-            {(urlFillMessage || textFillMessage || urlFillError || imageFillError) && (
-              <p style={{ margin: '4px 0 0', fontSize: 11, color: urlFillError || imageFillError ? '#dc2626' : '#047857' }}>
-                {urlFillError || imageFillError || urlFillMessage || textFillMessage}
-              </p>
-            )}
-          </div>
         </div>
       </header>
 
       <section style={{ display: 'flex', gap: 16, marginBottom: 32, alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-        <div style={{ flex: '0 0 900px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0 }}>
+        <div style={{ flex: '0 0 900px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* 주문 자동 채우기 — 주문 등록 바로 위, 상하 폭 최소 */}
+        <div style={{ ...cardStyle, width: '100%', maxWidth: 900, boxSizing: 'border-box', padding: '8px 12px' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>주문 자동 채우기</span>
+            <textarea
+              value={textFillValue}
+              onChange={(e) => { const v = e.target.value; setTextFillValue(v); setUrlFillValue(v); }}
+              onPaste={handleImagePaste}
+              placeholder="URL 또는 품의/주문 메시지 붙여넣기 (캡처는 Ctrl+V)"
+              rows={2}
+              style={{ flex: 1, minWidth: 200, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 12, resize: 'vertical', minHeight: 44 }}
+            />
+            <input type="file" accept="image/*" onChange={handleImageFileSelect} style={{ fontSize: 11 }} />
+            <button type="button" onClick={handleAutoFill} disabled={urlFillLoading || imageFillLoading} style={{ padding: '6px 12px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: urlFillLoading || imageFillLoading ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
+              {urlFillLoading ? '가져오는 중…' : imageFillLoading ? '인식 중…' : '자동으로 채우기'}
+            </button>
+          </div>
+          {imagePreviewUrl && <span style={{ fontSize: 11, color: '#64748b', marginRight: 8 }}>캡처 준비됨</span>}
+          {(urlFillMessage || textFillMessage || urlFillError || imageFillError) && (
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: urlFillError || imageFillError ? '#dc2626' : '#047857' }}>
+              {urlFillError || imageFillError || urlFillMessage || textFillMessage}
+            </p>
+          )}
+        </div>
         {/* 주문 등록 영역 폭: 900px 고정 */}
         <div style={{ ...cardStyle, width: '100%', maxWidth: 900, boxSizing: 'border-box', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -2228,8 +2222,6 @@ export default function App() {
               </div>
             </div>
           </div>
-          {/* 예전 URL·텍스트 채우기 카드는 상단 헤더로 이동했습니다. 이 블록은 레이아웃 보존용으로 숨겨 둡니다. */}
-          <div style={{ ...cardStyle, minWidth: 320, display: 'none' }} />
         </div>
         <div style={{ ...cardStyle, flex: '0 0 auto', minWidth: 320 }}>
           <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>거래처 관리</h3>
