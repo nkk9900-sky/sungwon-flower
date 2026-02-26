@@ -226,7 +226,7 @@ function buildStatementHtml(
           ${th(1, '일', 'col-day')}
           ${th(2, '품목', 'col-item')}
           ${th(3, requestColumnLabel, 'col-requester')}
-          ${th(4, '발송 장소', 'col-location')}
+          ${th(4, '배송 장소', 'col-location')}
           ${th(5, '수량', 'col-qty')}
           ${th(6, '공급가액', 'col-supply')}
           ${th(7, '세액', 'col-tax')}
@@ -349,9 +349,9 @@ function csvRowToOrder(headers: string[], cells: string[]): CsvOrderRow | null {
     branch: get('지점명') || null,
     item: get('품 목') || null,
     recipient: null,
-    provider: get('발주처') || null,
+    provider: get('플랫폼') || get('발주처') || null,
     partner: get('수주화원') || null,
-    location: get('발 송 장 소') || null,
+    location: get('배송장소') || get('발송장소') || get('발 송 장 소') || null,
     region: get('지역') || null,
     notes: get('특이사항') || null,
     price,
@@ -403,7 +403,7 @@ function useOrders(dateFrom?: string, dateTo?: string) {
   return { orders, loading, error, refetch }
 }
 
-/** 주문 등록 폼용: 전체 주문에서 발송장소 목록 (날짜 구간 무관) */
+/** 주문 등록 폼용: 전체 주문에서 배송장소 목록 (날짜 구간 무관) */
 function useAllLocationsList() {
   const [list, setList] = useState<string[]>([])
   useEffect(() => {
@@ -456,7 +456,7 @@ function useOrdersSummary(dateFrom: string | undefined, dateTo: string | undefin
 
 const CLIENT_PRIORITY_ORDER = ['노랑풍선', '엔타스', '하나투어비즈니스', '하나투어ITC', '경복궁면세점', '준제이엔씨']
 
-/** 노랑풍선 명세서 규칙: F=발송장소+세부주소, K=특이사항, 발주자=담당자, G=지점명/본인결혼 */
+/** 노랑풍선 명세서 규칙: F=배송장소+세부주소, K=특이사항, 발주자=담당자, G=지점명/본인결혼 */
 function yellowBalloonOrderToRow(o: Order, no: number, ordererName?: string): (string | number)[] {
   const item = (o.item ?? '').trim()
   const location = (o.location ?? '').trim()
@@ -539,7 +539,7 @@ function clearYellowBalloonDataRows(ws: XLSX.WorkSheet): void {
   }
 }
 
-/** 한 건을 템플릿 한 행에 쓸 값으로 변환. F=발송장소+세부주소, K=특이사항 */
+/** 한 건을 템플릿 한 행에 쓸 값으로 변환. F=배송장소+세부주소, K=특이사항 */
 function orderToCellValues(o: Order, section: '장례식' | '결혼식' | '기타', ordererName?: string): { 구분: string; no: number; date: string; 상품명: string; 발주자: string; 배송지: string; gCol: string; 요청팀: string; 수령인: string; 금액: number; 비고: string } {
   const item = (o.item ?? '').trim()
   const location = (o.location ?? '').trim()
@@ -849,7 +849,7 @@ export default function App() {
   const [generalFormatClient, setGeneralFormatClient] = useState('')
   const [statementExportLoading, setStatementExportLoading] = useState(false)
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0)
-  // 지역·발송장소 검색 시에는 날짜 조건 없이 전체 조회
+  // 지역·배송장소 검색 시에는 날짜 조건 없이 전체 조회
   const ordersDateFrom = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateFrom || undefined)
   const ordersDateTo = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateTo || undefined)
   const { orders, loading: ordersLoading, error, refetch } = useOrders(ordersDateFrom, ordersDateTo)
@@ -1034,7 +1034,7 @@ export default function App() {
     return s
   }
 
-  const backupCsvHeaders = ['배송일', '거래처', '지점명', '요청부서', '품목', '받는이', '발주처', '수주화원', '평점', '사유', '배송사진', '배송사진2', '발송장소', '지역', '특이사항', '판매가', '발주가', '수익', '수량']
+  const backupCsvHeaders = ['배송일', '거래처', '지점명', '요청부서', '품목', '받는이', '플랫폼', '수주화원', '평점', '사유', '배송사진', '배송사진2', '배송장소', '지역', '특이사항', '판매가', '발주가', '수익', '수량']
   const orderToCsvCells = (o: Order) => [
     o.date,
     o.client ?? '',
@@ -1328,7 +1328,7 @@ export default function App() {
     ).slice(0, 50)
   }, [searchLocation, locationList])
 
-  /** 주문 등록 폼 발송장소 추천 (전체 발송장소 목록 + 초성·포함) */
+  /** 주문 등록 폼 배송장소 추천 (전체 배송장소 목록 + 초성·포함) */
   const formLocationSuggestions = useMemo(() => {
     const q = form.location.trim()
     if (!q) return allLocationsList.slice(0, 50)
@@ -1410,7 +1410,7 @@ export default function App() {
     ).slice(0, 20)
   }, [contactClientInput, clientList])
 
-  // 같은 매장명이면 마지막으로 입력했던 주문자/연락처 (날짜 최신 순)
+  // 같은 지점명이면 마지막으로 입력했던 주문자/연락처 (날짜 최신 순)
   const lastOrdererByBranch = useMemo(() => {
     const map: Record<string, { orderer_name: string; orderer_phone: string }> = {}
     const sorted = [...orders].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
@@ -1684,7 +1684,7 @@ export default function App() {
       profit: r.profit,
       quantity: r.quantity ?? 1,
     }))
-    // 중복 제외: 이미 같은 날짜+거래처+발송장소(또는 매장명)+판매가+수량이 있으면 건너뜀
+    // 중복 제외: 이미 같은 날짜+거래처+배송장소(또는 지점명)+판매가+수량이 있으면 건너뜀
     const dates = csvParsedRows.map((r) => r.date)
     const minDate = dates.reduce((a, b) => (a <= b ? a : b), dates[0])
     const maxDate = dates.reduce((a, b) => (a >= b ? a : b), dates[0])
@@ -1767,11 +1767,14 @@ export default function App() {
               ) : (
                 <span style={{ fontSize: 14, whiteSpace: 'nowrap' }}>
                   {CHARGED_PROVIDERS.map((p) => (
-                    <span key={p} style={{ marginRight: 12 }}><span style={{ fontWeight: 600 }}>{p}</span> {formatMoney(chargedBalanceByProvider[p])}</span>
+                    <span key={p} style={{ marginRight: 16 }} title={`기준잔액 − 저장 시점 이후 등록된 주문 발주가 = 현재 잔액`}>
+                      <span style={{ fontWeight: 600 }}>{p}</span> {formatMoney(chargedBalanceByProvider[p])}
+                      <span style={{ fontSize: 11, color: '#64748b', marginLeft: 4 }}>(저장 이후 차감: {formatMoney(providerCostSumsAfterBalance[p] ?? 0)})</span>
+                    </span>
                   ))}
                 </span>
               )}
-              <button type="button" onClick={openBalanceEdit} style={{ padding: '6px 12px', background: '#e2e8f0', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>월초 충전잔액 수정</button>
+              <button type="button" onClick={openBalanceEdit} style={{ padding: '6px 12px', background: '#e2e8f0', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>충전잔액 수정</button>
             </div>
           </div>
           {selectedOrderId && <p style={{ margin: '0 0 12px', fontSize: 12, color: '#334155' }}>목록에서 선택한 주문을 수정한 뒤 버튼을 누르세요.</p>}
@@ -1779,7 +1782,18 @@ export default function App() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr 0.9fr 0.9fr', gap: 8, marginBottom: 10, width: '100%', minWidth: 0 }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
               <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>품목</span>
-              <input type="text" value={form.item} onChange={(e) => updateForm('item', e.target.value)} placeholder="품목" style={inputStyle} />
+              <input
+                type="text"
+                value={form.item}
+                onChange={(e) => updateForm('item', e.target.value)}
+                onBlur={() => {
+                  const v = form.item.trim()
+                  if (v === '근조') updateForm('item', '근조화환')
+                  else if (v === '축하') updateForm('item', '축하화환')
+                }}
+                placeholder="품목 (근조→근조화환, 축하→축하화환)"
+                style={inputStyle}
+              />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', minWidth: 0 }}>
               <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>거래처</span>
@@ -1808,7 +1822,7 @@ export default function App() {
               )}
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', minWidth: 0 }}>
-              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>매장명 (선택 시 거래처 자동)</span>
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>지점명 (선택 시 거래처 자동)</span>
               <input
                 ref={branchInputRef}
                 type="text"
@@ -1828,7 +1842,7 @@ export default function App() {
                   }, 150)
                 }}
                 onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-                placeholder="매장명 입력·초성 검색" style={inputStyle}
+                placeholder="지점명 입력·초성 검색" style={inputStyle}
               />
               {branchDropdownOpen && storeSuggestions.length > 0 && (
                 <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, margin: 0, padding: 0, listStyle: 'none', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: 200, overflowY: 'auto' }}>
@@ -1867,16 +1881,22 @@ export default function App() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 8, marginBottom: 10, width: '100%', minWidth: 0 }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', minWidth: 0 }}>
-              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>발주처 (초성 검색)</span>
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>플랫폼 (초성 검색)</span>
               <input
                 ref={providerInputRef}
                 type="text"
                 value={form.provider}
                 onChange={(e) => { updateForm('provider', e.target.value); setProviderDropdownOpen(true); }}
                 onFocus={() => setProviderDropdownOpen(true)}
-                onBlur={() => setTimeout(() => setProviderDropdownOpen(false), 150)}
+                onBlur={() => {
+                  const v = form.provider.trim()
+                  if (v === '베스트') updateForm('provider', '베스트플라워')
+                  else if (v === '한') updateForm('provider', '한플라워')
+                  setTimeout(() => setProviderDropdownOpen(false), 150)
+                }}
                 onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-                placeholder="초성 검색" style={inputStyle}
+                placeholder="베스트→베스트플라워, 한→한플라워"
+                style={inputStyle}
               />
               {providerDropdownOpen && providerSuggestions.length > 0 && (
                 <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, margin: 0, padding: 0, listStyle: 'none', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: 200, overflowY: 'auto' }}>
@@ -1897,7 +1917,7 @@ export default function App() {
               <input type="text" value={form.partner} onChange={(e) => updateForm('partner', e.target.value)} placeholder="수주화원" style={inputStyle} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
-              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>발송장소</span>
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>배송장소</span>
               <input
                 ref={formLocationInputRef}
                 type="text"
@@ -1905,7 +1925,7 @@ export default function App() {
                 onChange={(e) => { updateForm('location', e.target.value); setFormLocationDropdownOpen(true); }}
                 onFocus={() => setFormLocationDropdownOpen(true)}
                 onBlur={() => setTimeout(() => setFormLocationDropdownOpen(false), 150)}
-                placeholder="발송장소 (초성 검색 가능)"
+                placeholder="배송장소 (초성 검색 가능)"
                 style={inputStyle}
               />
               {formLocationDropdownOpen && formLocationSuggestions.length > 0 && (
@@ -2157,7 +2177,7 @@ export default function App() {
           >
             <option value="">없음</option>
             <option value="client">거래처</option>
-            <option value="location">발송장소</option>
+            <option value="location">배송장소</option>
             <option value="region">지역</option>
           </select>
           {searchCondition === 'client' && (
@@ -2181,7 +2201,7 @@ export default function App() {
                 onChange={(e) => { setSearchLocation(e.target.value); setLocationDropdownOpen(true); }}
                 onFocus={() => setLocationDropdownOpen(true)}
                 onBlur={() => setTimeout(() => setLocationDropdownOpen(false), 150)}
-                placeholder="발송장소 입력 또는 목록에서 선택"
+                placeholder="배송장소 입력 또는 목록에서 선택"
                 style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, width: '100%', minWidth: 220 }}
               />
               {locationDropdownOpen && locationSuggestions.length > 0 && (
@@ -2278,13 +2298,13 @@ export default function App() {
                   <th style={{ ...thStyle, width: 135 }}>지점명</th>
                   <th style={thStyle}>요청부서</th>
                   <th style={thStyle}>받는이</th>
-                  <th style={{ ...thStyle, minWidth: 115 }}>발주처</th>
+                  <th style={{ ...thStyle, minWidth: 115 }}>플랫폼</th>
                   <th style={{ ...thStyle, width: 109 }}>수주화원</th>
                   <th style={{ ...thStyle, background: '#f1f5f9', width: 38 }}>평점</th>
                   <th style={{ ...thStyle, background: '#f1f5f9', width: 44 }}>사유</th>
                   <th style={{ ...thStyle, background: '#f1f5f9', width: 293 }}>배송사진</th>
                   <th style={{ ...thStyle, background: '#f1f5f9', width: 90 }}>저장</th>
-                  <th style={{ ...thStyle, minWidth: 130 }}>발송장소</th>
+                  <th style={{ ...thStyle, minWidth: 130 }}>배송장소</th>
                   <th style={thStyle}>세부주소</th>
                   <th style={thStyle}>보내는 분</th>
                   <th style={thStyle}>지역</th>
@@ -2538,8 +2558,10 @@ export default function App() {
             style={{ background: '#fff', padding: 24, borderRadius: 12, boxShadow: '0 4px 24px rgba(0,0,0,0.15)', minWidth: 280 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 600 }}>월초 충전잔액 입력</h3>
-            <p style={{ margin: '0 0 12px', fontSize: 12, color: '#64748b' }}>지금 잔액을 입력하세요. 저장한 시점 이후에 등록하는 주문의 발주가만 차감해 옆에 표시됩니다.</p>
+            <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 600 }}>충전잔액 수정</h3>
+            <p style={{ margin: '0 0 12px', fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+              입력한 금액이 <strong>현재 기준 잔액</strong>입니다. <strong>저장한 시점 이후</strong>에 등록된 주문의 발주가만 이 잔액에서 차감됩니다. 수시로 수정하면 그 시점부터 적용되며, 새로 등록하는 주문 발주가는 바로 차감됩니다.
+            </p>
             {balanceEditError && <p style={{ margin: '0 0 12px', fontSize: 13, color: '#dc2626' }}>{balanceEditError}</p>}
             {CHARGED_PROVIDERS.map((p) => (
               <label key={p} style={{ display: 'block', marginBottom: 12 }}>

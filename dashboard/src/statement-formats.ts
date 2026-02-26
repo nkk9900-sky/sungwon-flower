@@ -10,7 +10,7 @@ export type ExportFormatType = 'general' | 'yellow_balloon' | 'entas_statement'
 /** 노랑풍선 전용 엑셀 양식 (구분, No, 배달일자, 상품명, 발주자, 배송지, 거래처 명, 요청팀, 수령인, 금액, 비고) */
 export const YELLOW_BALLOON_CLIENTS = ['노랑풍선'] as const
 
-/** 거래명세표 양식 (월, 일, 품목=경조+지점명, 요청인=받는이, 발송장소, 수량, 공급가액, 세액=0, 금액) */
+/** 거래명세표 양식 (월, 일, 품목=경조+지점명, 요청인=받는이, 배송장소, 수량, 공급가액, 세액=0, 금액) */
 export const ENTAS_STATEMENT_CLIENTS = [
   '엔타스',
   '엔타스프레쉬미트',

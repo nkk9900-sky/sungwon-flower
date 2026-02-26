@@ -1,4 +1,4 @@
--- 발주처별 충전 잔액 (한플라워·베스트플라워 등)
+-- 플랫폼별 충전 잔액 (한플라워·베스트플라워 등)
 -- 충전·월이용료 차감 시 대시보드에서 수정하고, 발주가 차감 후 잔여포인트를 표시합니다.
 
 CREATE TABLE IF NOT EXISTS public.provider_balances (
@@ -35,4 +35,4 @@ INSERT INTO public.provider_balances (provider_name, balance) VALUES
   ('베스트플라워', 90000)
 ON CONFLICT (provider_name) DO NOTHING;
 
-COMMENT ON TABLE public.provider_balances IS '발주처별 충전 잔액. 충전/월이용료 차감 시 수정';
+COMMENT ON TABLE public.provider_balances IS '플랫폼별 충전 잔액. 충전/월이용료 차감 시 수정';
