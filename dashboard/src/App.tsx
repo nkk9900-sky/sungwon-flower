@@ -9,8 +9,9 @@ const ENTAS_CLIENT_SET = new Set(ENTAS_STATEMENT_CLIENTS as readonly string[])
 /** 근조/청첩 URL 또는 캡처 텍스트에서 주문 폼용 값 추출 */
 function parseTextForOrder(text: string): Partial<typeof emptyForm> {
   const out: Partial<typeof emptyForm> = {}
+  const raw = text
   const t = text.replace(/\s+/g, ' ')
-  // 날짜: YYYY-MM-DD, YYYY.MM.DD, YYYY년 M월 D일, YYYY/M/D
+  // 날짜: YYYY년 MM월 DD일, YYYY-MM-DD, YYYY.MM.DD
   const dateM = t.match(/(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})/)
   if (dateM) {
     const [, y, mon, d] = dateM
@@ -19,16 +20,30 @@ function parseTextForOrder(text: string): Partial<typeof emptyForm> {
   // 품목: 근조/장례/부고 → 근조화환, 결혼/청첩/축하/예식 → 축하화환
   if (/\d{4}/.test(t)) {
     if (/장례|부고|근조|빈소|영결/i.test(t)) out.item = '근조화환'
-    else if (/결혼|청첩|축하|예식|웨딩/i.test(t)) out.item = '축하화환'
+    else if (/결혼|청첩|축하|예식|웨딩|예식장/i.test(t)) out.item = '축하화환'
   }
-  // 배송장소: 장례식장, 결혼식장, 예식장, 병원, 호텔 앞뒤 한글·공백
-  const placePattern = /([가-힣\s]{2,25}?(?:장례식장|결혼식장|예식장|병원|호텔|홀))/g
-  const places: string[] = []
-  let pm: RegExpExecArray | null
-  while ((pm = placePattern.exec(t)) !== null) places.push(pm[1].replace(/\s+/g, ' ').trim())
-  if (places.length > 0) out.location = places[0]
-  // 수령인: "수령인 : 이름", "받는이 이름", "○○○님"
-  const recipientMatch = t.match(/(?:수령인|받는이|성함)\s*[:\s]*([가-힣]{2,5})/i) || t.match(/([가-힣]{2,4})\s*님/)
+  // 예식장 주소: / 4. 예식장 주소: ... → 배송장소(예식장명) + 세부주소(홀 등)
+  const addrM = raw.match(/(?:예식장\s*주소|배송장소|주소)\s*[:\s]*([^\n]+)/i)
+  if (addrM) {
+    const full = addrM[1].replace(/\s+/g, ' ').trim()
+    const hallM = full.match(/(.+?)\s+([가-힣a-zA-Z\s]+(?:볼룸|홀|베뉴|룸)\s*\([^)]*\)|[가-힣a-zA-Z\s]+(?:볼룸|홀|베뉴|룸))\s*$/i)
+    if (hallM) {
+      out.location = hallM[1].trim()
+      out.deliveryDetailAddress = hallM[2].trim()
+    } else {
+      out.location = full
+    }
+  }
+  // 장례식장/결혼식장/예식장 이름 (예식장 주소 없을 때)
+  if (!out.location) {
+    const placePattern = /([가-힣\s]{2,25}?(?:장례식장|결혼식장|예식장|병원|호텔|홀))/g
+    const places: string[] = []
+    let pm: RegExpExecArray | null
+    while ((pm = placePattern.exec(t)) !== null) places.push(pm[1].replace(/\s+/g, ' ').trim())
+    if (places.length > 0) out.location = places[0]
+  }
+  // 받는 분 이름: 고은지 / 수령인: / 받는이:
+  const recipientMatch = raw.match(/(?:받는\s*분\s*이름|받는이|수령인|성함)\s*[:\s]*([가-힣]{2,5})/i) || t.match(/([가-힣]{2,4})\s*님/)
   if (recipientMatch) out.recipient = recipientMatch[1].trim()
   return out
 }
@@ -1465,9 +1480,14 @@ export default function App() {
   const updateForm = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }))
 
   const applyParsedToForm = (parsed: Partial<typeof emptyForm>) => {
-    const keys = Object.keys(parsed).filter((k) => parsed[k as keyof typeof parsed] != null && parsed[k as keyof typeof parsed] !== '') as (keyof typeof emptyForm)[]
+    const safe: Partial<typeof emptyForm> = {}
+    for (const k of Object.keys(parsed) as (keyof typeof emptyForm)[]) {
+      const v = parsed[k]
+      if (v != null && String(v).trim() !== '') safe[k] = String(v).trim()
+    }
+    const keys = Object.keys(safe) as (keyof typeof emptyForm)[]
     if (keys.length === 0) return []
-    setForm((f) => ({ ...f, ...parsed }))
+    setForm((f) => ({ ...f, ...safe }))
     return keys
   }
 
@@ -1871,90 +1891,55 @@ export default function App() {
   }
 
   return (
-    <div style={{ width: '99%', maxWidth: '99%', margin: '0 auto', padding: '16px 24px', minHeight: '100vh', boxSizing: 'border-box', overflowX: 'auto' }}>
-      <header style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
-        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>성원플라워 관리 대시보드</h1>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ ...cardStyle, minWidth: 200, padding: '14px 20px' }}>
-            <h2 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 600 }}>CSV 일괄 등록</h2>
-            <input type="file" accept=".csv" onChange={handleCsvFile} style={{ marginBottom: 6, fontSize: 12 }} disabled={csvFileLoading} />
-            {csvFileLoading && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#334155' }}>파일 읽는 중…</p>}
-            {csvImportError && <p style={{ margin: '0 0 4px', fontSize: 11, color: csvImportStatus === 'ok' ? '#047857' : '#dc2626' }}>{csvImportError}</p>}
-            {!csvFileLoading && csvParsedRows != null && (
-              <>
-                <p style={{ margin: '0 0 4px', fontSize: 13 }}><strong>{csvParsedRows.length}</strong>건 파싱</p>
-                <button type="button" onClick={handleCsvBulkInsert} disabled={csvImportStatus === 'importing'} style={{ padding: '6px 12px', background: '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
-                  {csvImportStatus === 'importing' ? '등록 중…' : csvImportStatus === 'ok' ? '완료' : '일괄 등록'}
-                </button>
-              </>
-            )}
-          </div>
-          <div style={{ ...cardStyle, minWidth: 200, padding: '14px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>데이터 백업</h2>
-              <button type="button" onClick={handleBackupExport} disabled={backupLoading} style={{ padding: '5px 12px', background: '#475569', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: backupLoading ? 'wait' : 'pointer' }}>
-                {backupLoading ? '백업 중…' : 'CSV로 백업'}
-              </button>
-            </div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input type="date" value={backupDateFrom} onChange={(e) => setBackupDateFrom(e.target.value)} style={{ padding: '5px 8px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12 }} />
-              <span style={{ color: '#64748b' }}>~</span>
-              <input type="date" value={backupDateTo} onChange={(e) => setBackupDateTo(e.target.value)} style={{ padding: '5px 8px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12 }} />
-            </div>
-          </div>
-        </div>
+    <div style={{ width: '99%', maxWidth: '99%', margin: '0 auto', padding: '8px 24px 16px', minHeight: '100vh', boxSizing: 'border-box', overflowX: 'auto' }}>
+      <header style={{ marginBottom: 4 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>성원플라워 관리 대시보드</h1>
       </header>
 
       <section style={{ display: 'flex', gap: 16, marginBottom: 32, alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-        <div style={{ flex: '0 0 900px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* 주문 자동 채우기 — 주문 등록 바로 위, 상하 폭 최소 */}
-        <div style={{ ...cardStyle, width: '100%', maxWidth: 900, boxSizing: 'border-box', padding: '8px 12px' }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>주문 자동 채우기</span>
+        <div style={{ flex: '0 0 900px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* 주문 자동 채우기 — 상하 폭 최소 */}
+        <div style={{ ...cardStyle, width: '100%', maxWidth: 900, boxSizing: 'border-box', padding: '6px 10px' }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>주문 자동 채우기</span>
             <textarea
               value={textFillValue}
               onChange={(e) => { const v = e.target.value; setTextFillValue(v); setUrlFillValue(v); }}
               onPaste={handleImagePaste}
               placeholder="URL 또는 품의/주문 메시지 붙여넣기 (캡처는 Ctrl+V)"
-              rows={2}
-              style={{ flex: 1, minWidth: 200, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 12, resize: 'vertical', minHeight: 44 }}
+              rows={1}
+              style={{ flex: 1, minWidth: 180, padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 12, resize: 'vertical', minHeight: 32 }}
             />
-            <input type="file" accept="image/*" onChange={handleImageFileSelect} style={{ fontSize: 11 }} />
-            <button type="button" onClick={handleAutoFill} disabled={urlFillLoading || imageFillLoading} style={{ padding: '6px 12px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: urlFillLoading || imageFillLoading ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
+            <input type="file" accept="image/*" onChange={handleImageFileSelect} style={{ fontSize: 10 }} />
+            <button type="button" onClick={handleAutoFill} disabled={urlFillLoading || imageFillLoading} style={{ padding: '4px 10px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, cursor: urlFillLoading || imageFillLoading ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
               {urlFillLoading ? '가져오는 중…' : imageFillLoading ? '인식 중…' : '자동으로 채우기'}
             </button>
           </div>
-          {imagePreviewUrl && <span style={{ fontSize: 11, color: '#64748b', marginRight: 8 }}>캡처 준비됨</span>}
+          {imagePreviewUrl && <span style={{ fontSize: 10, color: '#64748b', marginRight: 6 }}>캡처 준비됨</span>}
           {(urlFillMessage || textFillMessage || urlFillError || imageFillError) && (
-            <p style={{ margin: '4px 0 0', fontSize: 11, color: urlFillError || imageFillError ? '#dc2626' : '#047857' }}>
+            <p style={{ margin: '2px 0 0', fontSize: 10, color: urlFillError || imageFillError ? '#dc2626' : '#047857' }}>
               {urlFillError || imageFillError || urlFillMessage || textFillMessage}
             </p>
           )}
         </div>
         {/* 주문 등록 영역 폭: 900px 고정 */}
         <div style={{ ...cardStyle, width: '100%', maxWidth: 900, boxSizing: 'border-box', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>{selectedOrderId ? '주문 수정' : '주문 등록'}</h2>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>배송일</span>
               <input type="date" value={form.date} onChange={(e) => updateForm('date', e.target.value)} style={inputStyle} />
             </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>충전잔액</span>
-              {providerBalancesLoading ? (
-                <span style={{ fontSize: 13 }}>…</span>
-              ) : (
-                <span style={{ fontSize: 14, whiteSpace: 'nowrap' }}>
-                  {CHARGED_PROVIDERS.map((p) => (
-                    <span key={p} style={{ marginRight: 16 }} title={`기준잔액 − 저장 시점 이후 등록된 주문 발주가 = 현재 잔액`}>
-                      <span style={{ fontWeight: 600 }}>{p}</span> {formatMoney(chargedBalanceByProvider[p])}
-                      <span style={{ fontSize: 11, color: '#64748b', marginLeft: 4 }}>(저장 이후 차감: {formatMoney(providerCostSumsAfterBalance[p] ?? 0)})</span>
-                    </span>
-                  ))}
-                </span>
-              )}
-              <button type="button" onClick={openBalanceEdit} style={{ padding: '6px 12px', background: '#e2e8f0', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>충전잔액 수정</button>
-            </div>
+            {providerBalancesLoading ? (
+              <span style={{ fontSize: 13 }}>…</span>
+            ) : (
+              <>
+                {CHARGED_PROVIDERS.map((p) => (
+                  <span key={p} style={{ fontSize: 14, fontWeight: 600, marginRight: 8 }}>{p} {formatMoney(chargedBalanceByProvider[p])}</span>
+                ))}
+                <button type="button" onClick={openBalanceEdit} style={{ padding: '6px 12px', background: '#e2e8f0', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>수정</button>
+              </>
+            )}
           </div>
           {selectedOrderId && <p style={{ margin: '0 0 12px', fontSize: 12, color: '#334155' }}>목록에서 선택한 주문을 수정한 뒤 버튼을 누르세요.</p>}
           <form onSubmit={handleSubmitOrder}>
@@ -2219,6 +2204,34 @@ export default function App() {
               <div style={cardStyle}>
                 <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>전년동월 주문수</div>
                 <div style={{ fontSize: 24, fontWeight: 700 }}>{prevYearLoading ? '…' : `${prevYearSummary.count}건`}</div>
+              </div>
+            </div>
+          </div>
+          {/* CSV 일괄 등록 · 데이터 백업 — 매출/주문건수 카드 바로 아래, 위·아래로 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ ...cardStyle, padding: '8px 12px', minWidth: 160 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>CSV 일괄 등록</div>
+              <input type="file" accept=".csv" onChange={handleCsvFile} style={{ marginBottom: 4, fontSize: 11 }} disabled={csvFileLoading} />
+              {csvFileLoading && <p style={{ margin: 0, fontSize: 11, color: '#334155' }}>읽는 중…</p>}
+              {csvImportError && <p style={{ margin: 0, fontSize: 10, color: csvImportStatus === 'ok' ? '#047857' : '#dc2626' }}>{csvImportError}</p>}
+              {!csvFileLoading && csvParsedRows != null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11 }}><strong>{csvParsedRows.length}</strong>건</span>
+                  <button type="button" onClick={handleCsvBulkInsert} disabled={csvImportStatus === 'importing'} style={{ padding: '4px 8px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>
+                    {csvImportStatus === 'importing' ? '등록 중…' : csvImportStatus === 'ok' ? '완료' : '일괄 등록'}
+                  </button>
+                </div>
+              )}
+            </div>
+            <div style={{ ...cardStyle, padding: '8px 12px', minWidth: 160 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>데이터 백업</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <button type="button" onClick={handleBackupExport} disabled={backupLoading} style={{ padding: '4px 8px', background: '#475569', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, cursor: backupLoading ? 'wait' : 'pointer' }}>
+                  {backupLoading ? '백업 중…' : 'CSV로 백업'}
+                </button>
+                <input type="date" value={backupDateFrom} onChange={(e) => setBackupDateFrom(e.target.value)} style={{ padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 11 }} />
+                <span style={{ color: '#64748b', fontSize: 11 }}>~</span>
+                <input type="date" value={backupDateTo} onChange={(e) => setBackupDateTo(e.target.value)} style={{ padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 11 }} />
               </div>
             </div>
           </div>
