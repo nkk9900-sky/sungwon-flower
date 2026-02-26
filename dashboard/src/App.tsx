@@ -6,6 +6,33 @@ import { type ExportFormatType, filterGeneralFormatClients, ENTAS_STATEMENT_CLIE
 
 const ENTAS_CLIENT_SET = new Set(ENTAS_STATEMENT_CLIENTS as readonly string[])
 
+/** 근조/청첩 URL 또는 캡처 텍스트에서 주문 폼용 값 추출 */
+function parseTextForOrder(text: string): Partial<typeof emptyForm> {
+  const out: Partial<typeof emptyForm> = {}
+  const t = text.replace(/\s+/g, ' ')
+  // 날짜: YYYY-MM-DD, YYYY.MM.DD, YYYY년 M월 D일, YYYY/M/D
+  const dateM = t.match(/(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})/)
+  if (dateM) {
+    const [, y, mon, d] = dateM
+    out.date = `${y}-${String(Number(mon)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`
+  }
+  // 품목: 근조/장례/부고 → 근조화환, 결혼/청첩/축하/예식 → 축하화환
+  if (/\d{4}/.test(t)) {
+    if (/장례|부고|근조|빈소|영결/i.test(t)) out.item = '근조화환'
+    else if (/결혼|청첩|축하|예식|웨딩/i.test(t)) out.item = '축하화환'
+  }
+  // 배송장소: 장례식장, 결혼식장, 예식장, 병원, 호텔 앞뒤 한글·공백
+  const placePattern = /([가-힣\s]{2,25}?(?:장례식장|결혼식장|예식장|병원|호텔|홀))/g
+  const places: string[] = []
+  let pm: RegExpExecArray | null
+  while ((pm = placePattern.exec(t)) !== null) places.push(pm[1].replace(/\s+/g, ' ').trim())
+  if (places.length > 0) out.location = places[0]
+  // 수령인: "수령인 : 이름", "받는이 이름", "○○○님"
+  const recipientMatch = t.match(/(?:수령인|받는이|성함)\s*[:\s]*([가-힣]{2,5})/i) || t.match(/([가-힣]{2,4})\s*님/)
+  if (recipientMatch) out.recipient = recipientMatch[1].trim()
+  return out
+}
+
 const CHOSUNG = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'
 
 /** 노랑풍선 명세서: 상품명 규칙 (계획서 5) */
@@ -879,6 +906,14 @@ export default function App() {
   const [balanceEditForm, setBalanceEditForm] = useState<Record<string, string>>({})
   const [balanceSaving, setBalanceSaving] = useState(false)
   const [balanceEditError, setBalanceEditError] = useState<string | null>(null)
+  const [urlFillValue, setUrlFillValue] = useState('')
+  const [urlFillLoading, setUrlFillLoading] = useState(false)
+  const [urlFillError, setUrlFillError] = useState<string | null>(null)
+  const [urlFillMessage, setUrlFillMessage] = useState<string | null>(null)
+  const [imageFillLoading, setImageFillLoading] = useState(false)
+  const [imageFillError, setImageFillError] = useState<string | null>(null)
+  const [textFillValue, setTextFillValue] = useState('')
+  const [textFillMessage, setTextFillMessage] = useState<string | null>(null)
   const [statementFormatKey, setStatementFormatKey] = useState<string>('default')
   const [clientStatementFormatFromDb, setClientStatementFormatFromDb] = useState<string | null>(null)
   const [saveStatementFormatAsDefault, setSaveStatementFormatAsDefault] = useState(false)
@@ -1427,6 +1462,59 @@ export default function App() {
 
   const updateForm = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }))
 
+  const applyParsedToForm = (parsed: Partial<typeof emptyForm>) => {
+    const keys = Object.keys(parsed).filter((k) => parsed[k as keyof typeof parsed] != null && parsed[k as keyof typeof parsed] !== '') as (keyof typeof emptyForm)[]
+    if (keys.length === 0) return []
+    setForm((f) => ({ ...f, ...parsed }))
+    return keys
+  }
+
+  const handleUrlFill = async () => {
+    const url = urlFillValue.trim()
+    if (!url.startsWith('http')) {
+      setUrlFillError('http 또는 https로 시작하는 URL을 입력하세요.')
+      setUrlFillMessage(null)
+      return
+    }
+    setUrlFillError(null)
+    setUrlFillMessage(null)
+    setTextFillMessage(null)
+    setUrlFillLoading(true)
+    try {
+      const res = await fetch('/api/parse-page', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
+      const data = await res.json()
+      if (!res.ok) {
+        setUrlFillError(data?.error ?? '페이지를 가져올 수 없습니다.')
+        return
+      }
+      const text = data?.text ?? ''
+      const parsed = parseTextForOrder(text)
+      const applied = applyParsedToForm(parsed)
+      if (applied.length > 0) setUrlFillMessage(`채운 항목: ${applied.join(', ')}. 확인 후 저장하세요.`)
+      else setUrlFillMessage('추출된 항목이 없습니다. URL이 근조/청첩 페이지인지 확인하세요.')
+    } catch (e) {
+      setUrlFillError(e instanceof Error ? e.message : '요청 실패')
+    } finally {
+      setUrlFillLoading(false)
+    }
+  }
+
+  const handleTextFill = () => {
+    setUrlFillError(null)
+    setUrlFillMessage(null)
+    setTextFillMessage(null)
+    setImageFillError(null)
+    const text = textFillValue.trim()
+    if (!text) {
+      setTextFillMessage('텍스트를 붙여넣은 뒤 버튼을 눌러주세요.')
+      return
+    }
+    const parsed = parseTextForOrder(text)
+    const applied = applyParsedToForm(parsed)
+    if (applied.length > 0) setTextFillMessage(`채운 항목: ${applied.join(', ')}. 확인 후 저장하세요.`)
+    else setTextFillMessage('추출된 항목이 없습니다.')
+  }
+
   const setRowUpdate = (row: Order, patch: Partial<RowDraft>) => {
     setRowUpdates((prev) => {
       const next = { ...prev }
@@ -1785,7 +1873,11 @@ export default function App() {
               <input
                 type="text"
                 value={form.item}
-                onChange={(e) => updateForm('item', e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value
+                  const final = v === '근조' ? '근조화환' : v === '축하' ? '축하화환' : v
+                  updateForm('item', final)
+                }}
                 onBlur={() => {
                   const v = form.item.trim()
                   if (v === '근조') updateForm('item', '근조화환')
@@ -1886,7 +1978,12 @@ export default function App() {
                 ref={providerInputRef}
                 type="text"
                 value={form.provider}
-                onChange={(e) => { updateForm('provider', e.target.value); setProviderDropdownOpen(true); }}
+                onChange={(e) => {
+                  const v = e.target.value
+                  const final = v === '베스트' ? '베스트플라워' : v === '한' ? '한플라워' : v
+                  updateForm('provider', final)
+                  setProviderDropdownOpen(true)
+                }}
                 onFocus={() => setProviderDropdownOpen(true)}
                 onBlur={() => {
                   const v = form.provider.trim()
@@ -2003,34 +2100,76 @@ export default function App() {
         </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'row', gap: 16, flex: '0 0 auto', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-        <div style={{ display: 'flex', gap: 16, flex: '0 0 auto', alignItems: 'flex-start' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={cardStyle}>
-              <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>검색 기간 매출</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{ordersLoading ? '…' : formatMoney(searchPeriodSummary.sales)}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: '0 0 auto' }}>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={cardStyle}>
+                <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>검색 기간 매출</div>
+                <div style={{ fontSize: 24, fontWeight: 700 }}>{ordersLoading ? '…' : formatMoney(searchPeriodSummary.sales)}</div>
+              </div>
+              <div style={cardStyle}>
+                <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>검색 기간 수익</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: '#047857' }}>{ordersLoading ? '…' : formatMoney(searchPeriodSummary.profit)}</div>
+              </div>
+              <div style={cardStyle}>
+                <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>검색 기간 주문수</div>
+                <div style={{ fontSize: 24, fontWeight: 700 }}>{ordersLoading ? '…' : `${searchPeriodSummary.count}건`}</div>
+              </div>
             </div>
-            <div style={cardStyle}>
-              <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>검색 기간 수익</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: '#047857' }}>{ordersLoading ? '…' : formatMoney(searchPeriodSummary.profit)}</div>
-            </div>
-            <div style={cardStyle}>
-              <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>검색 기간 주문수</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{ordersLoading ? '…' : `${searchPeriodSummary.count}건`}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={cardStyle}>
+                <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>전년동월 매출</div>
+                <div style={{ fontSize: 24, fontWeight: 700 }}>{prevYearLoading ? '…' : formatMoney(prevYearSummary.sales)}</div>
+              </div>
+              <div style={cardStyle}>
+                <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>전년동월 수익</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: '#047857' }}>{prevYearLoading ? '…' : formatMoney(prevYearSummary.profit)}</div>
+              </div>
+              <div style={cardStyle}>
+                <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>전년동월 주문수</div>
+                <div style={{ fontSize: 24, fontWeight: 700 }}>{prevYearLoading ? '…' : `${prevYearSummary.count}건`}</div>
+              </div>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={cardStyle}>
-              <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>전년동월 매출</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{prevYearLoading ? '…' : formatMoney(prevYearSummary.sales)}</div>
-            </div>
-            <div style={cardStyle}>
-              <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>전년동월 수익</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: '#047857' }}>{prevYearLoading ? '…' : formatMoney(prevYearSummary.profit)}</div>
-            </div>
-            <div style={cardStyle}>
-              <div style={{ color: '#64748b', fontSize: 14, marginBottom: 4 }}>전년동월 주문수</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{prevYearLoading ? '…' : `${prevYearSummary.count}건`}</div>
-            </div>
+          {/* URL·텍스트로 주문 폼 채우기 — 매출 카드 하단 */}
+          <div style={{ ...cardStyle, minWidth: 320 }}>
+            <h3 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600 }}>URL·텍스트로 채우기</h3>
+            <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b' }}>근조/청첩 URL 또는 품의·메시지 텍스트를 붙여넣으면 주문 폼에 자동 입력됩니다.</p>
+            <label style={{ display: 'block', marginBottom: 8 }}>
+              <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>URL</span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="url"
+                  value={urlFillValue}
+                  onChange={(e) => setUrlFillValue(e.target.value)}
+                  placeholder="https://..."
+                  style={{ flex: 1, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13 }}
+                />
+                <button type="button" onClick={handleUrlFill} disabled={urlFillLoading} style={{ padding: '8px 12px', background: '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: urlFillLoading ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
+                  {urlFillLoading ? '가져오는 중…' : 'URL에서 채우기'}
+                </button>
+              </div>
+            </label>
+            <label style={{ display: 'block', marginBottom: 8 }}>
+              <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>텍스트 (품의·메시지 등)</span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <textarea
+                  value={textFillValue}
+                  onChange={(e) => setTextFillValue(e.target.value)}
+                  placeholder="품의서·주문 메시지 붙여넣기"
+                  rows={3}
+                  style={{ flex: 1, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13, resize: 'vertical', minHeight: 60 }}
+                />
+                <button type="button" onClick={handleTextFill} style={{ padding: '8px 12px', background: '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  텍스트에서 채우기
+                </button>
+              </div>
+            </label>
+            {(urlFillMessage || textFillMessage || urlFillError || imageFillError) && (
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: urlFillError || imageFillError ? '#dc2626' : '#047857' }}>
+                {urlFillError || imageFillError || urlFillMessage || textFillMessage}
+              </p>
+            )}
           </div>
         </div>
         <div style={{ ...cardStyle, flex: '0 0 auto', minWidth: 320 }}>
