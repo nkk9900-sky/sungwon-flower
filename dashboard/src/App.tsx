@@ -6,45 +6,64 @@ import { type ExportFormatType, filterGeneralFormatClients, ENTAS_STATEMENT_CLIE
 
 const ENTAS_CLIENT_SET = new Set(ENTAS_STATEMENT_CLIENTS as readonly string[])
 
-/** 근조/청첩 URL 또는 캡처 텍스트에서 주문 폼용 값 추출 */
+/** 근조/청첩 URL 또는 캡처 텍스트에서 주문 폼용 값 추출 (번호·라벨 형식 지원) */
 function parseTextForOrder(text: string): Partial<typeof emptyForm> {
   const out: Partial<typeof emptyForm> = {}
   const raw = text
   const t = text.replace(/\s+/g, ' ')
-  // 날짜: YYYY년 MM월 DD일, YYYY-MM-DD, YYYY.MM.DD
+  const lines = raw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
+
+  // 날짜: "5. 날짜: 2026년 03월 01일" / YYYY년 MM월 DD일
   const dateM = t.match(/(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})/)
   if (dateM) {
     const [, y, mon, d] = dateM
     out.date = `${y}-${String(Number(mon)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`
   }
-  // 품목: 근조/장례/부고 → 근조화환, 결혼/청첩/축하/예식 → 축하화환
-  if (/\d{4}/.test(t)) {
-    if (/장례|부고|근조|빈소|영결/i.test(t)) out.item = '근조화환'
-    else if (/결혼|청첩|축하|예식|웨딩|예식장/i.test(t)) out.item = '축하화환'
+  // 품목: 결혼/축하화환 → 축하화환, 근조/부고 → 근조화환
+  if (/결혼|청첩|축하|예식|웨딩|축하화환/i.test(t)) out.item = '축하화환'
+  else if (/장례|부고|근조|빈소|영결|근조화환/i.test(t)) out.item = '근조화환'
+
+  // 2. 받는 분 이름: 고은지 / 1. 신부 이름: 고은지
+  for (const line of lines) {
+    const rec = line.match(/(?:받는\s*분\s*이름|신부\s*이름|받는이|수령인|성함)\s*[:\s]*([가-힣]{2,5})/i)
+    if (rec) { out.recipient = rec[1].trim(); break }
   }
-  // 예식장 주소: / 4. 예식장 주소: ... → 배송장소(예식장명) + 세부주소(홀 등)
-  const addrM = raw.match(/(?:예식장\s*주소|배송장소|주소)\s*[:\s]*([^\n]+)/i)
-  if (addrM) {
-    const full = addrM[1].replace(/\s+/g, ' ').trim()
-    const hallM = full.match(/(.+?)\s+([가-힣a-zA-Z\s]+(?:볼룸|홀|베뉴|룸)\s*\([^)]*\)|[가-힣a-zA-Z\s]+(?:볼룸|홀|베뉴|룸))\s*$/i)
+  if (!out.recipient) {
+    const rec = t.match(/([가-힣]{2,4})\s*님\b/)
+    if (rec) out.recipient = rec[1].trim()
+  }
+
+  // 3. 연락처: 010-8802-0616
+  const phoneM = t.match(/(?:연락처|전화)\s*[:\s]*([0-9\-]{9,15})/)
+  if (phoneM) out.ordererPhone = phoneM[1].replace(/\s/g, '').trim()
+
+  // 발신: "하나투어비즈니스 경영지원팀 ... 입니다" → 거래처
+  const clientM = raw.match(/([가-힣a-zA-Z0-9]+(?:비즈니스|플라워|투어|항공|코리아|엔터테인먼트))\s+[\s\S]*?입니다/)
+  if (clientM) out.client = clientM[1].trim()
+
+  // 4. 예식장 주소: ... 웨스틴 서울 파르나스 하모니 볼룸(LLF)
+  const addrLine = lines.find((l) => /예식장\s*주소|배송장소|주소\s*:/.test(l))
+  if (addrLine) {
+    const addrContent = addrLine.replace(/^[\d.]+\s*(?:예식장\s*주소|배송장소|주소)\s*[:\s]*/i, '').replace(/\s+/g, ' ').trim()
+    const hallM = addrContent.match(/(.+?)\s+([가-힣a-zA-Z]+\s+(?:볼룸|홀|룸)\s*\([^)]*\))\s*$/i)
     if (hallM) {
-      out.location = hallM[1].trim()
+      const beforeHall = hallM[1].trim()
+      const venueM = beforeHall.match(/([가-힣a-zA-Z]+\s+[가-힣a-zA-Z]+\s+[가-힣a-zA-Z]+)\s*$/)
+      out.location = venueM ? venueM[1].trim() : beforeHall
       out.deliveryDetailAddress = hallM[2].trim()
     } else {
-      out.location = full
+      out.location = addrContent
     }
   }
-  // 장례식장/결혼식장/예식장 이름 (예식장 주소 없을 때)
   if (!out.location) {
-    const placePattern = /([가-힣\s]{2,25}?(?:장례식장|결혼식장|예식장|병원|호텔|홀))/g
-    const places: string[] = []
+    const placePattern = /([가-힣a-zA-Z\s]{2,30}?(?:장례식장|결혼식장|예식장|병원|호텔|홀))/g
     let pm: RegExpExecArray | null
-    while ((pm = placePattern.exec(t)) !== null) places.push(pm[1].replace(/\s+/g, ' ').trim())
-    if (places.length > 0) out.location = places[0]
+    while ((pm = placePattern.exec(t)) !== null) {
+      out.location = pm[1].replace(/\s+/g, ' ').trim()
+      break
+    }
   }
-  // 받는 분 이름: 고은지 / 수령인: / 받는이:
-  const recipientMatch = raw.match(/(?:받는\s*분\s*이름|받는이|수령인|성함)\s*[:\s]*([가-힣]{2,5})/i) || t.match(/([가-힣]{2,4})\s*님/)
-  if (recipientMatch) out.recipient = recipientMatch[1].trim()
+
   return out
 }
 
