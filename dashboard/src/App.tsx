@@ -1498,6 +1498,11 @@ export default function App() {
 
   const updateForm = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }))
 
+  const FIELD_LABELS: Record<string, string> = {
+    date: '배송일', client: '거래처', branch: '지점명', requestDepartment: '요청부서', item: '품목', recipient: '받는이',
+    provider: '플랫폼', partner: '수주화원', location: '배송장소', deliveryDetailAddress: '배송 세부주소', sender: '보내는 분',
+    region: '지역', notes: '특이사항', price: '판매가', cost: '발주가', quantity: '수량', orderer: '주문자', ordererPhone: '연락처',
+  }
   const applyParsedToForm = (parsed: Partial<typeof emptyForm>) => {
     const safe: Partial<typeof emptyForm> = {}
     for (const k of Object.keys(parsed) as (keyof typeof emptyForm)[]) {
@@ -1509,6 +1514,7 @@ export default function App() {
     setForm((f) => ({ ...f, ...safe }))
     return keys
   }
+  const appliedLabels = (keys: (keyof typeof emptyForm)[]) => keys.map((k) => FIELD_LABELS[k] ?? k).join(', ')
 
   const handleUrlFill = async () => {
     const url = urlFillValue.trim()
@@ -1531,7 +1537,7 @@ export default function App() {
       const text = data?.text ?? ''
       const parsed = parseTextForOrder(text)
       const applied = applyParsedToForm(parsed)
-      if (applied.length > 0) setUrlFillMessage(`채운 항목: ${applied.join(', ')}. 확인 후 저장하세요.`)
+      if (applied.length > 0) setUrlFillMessage(`채운 항목: ${appliedLabels(applied)}. 확인 후 저장하세요.`)
       else setUrlFillMessage('추출된 항목이 없습니다. URL이 근조/청첩 페이지인지 확인하세요.')
     } catch (e) {
       setUrlFillError(e instanceof Error ? e.message : '요청 실패')
@@ -1552,7 +1558,7 @@ export default function App() {
     }
     const parsed = parseTextForOrder(text)
     const applied = applyParsedToForm(parsed)
-    if (applied.length > 0) setTextFillMessage(`채운 항목: ${applied.join(', ')}. 확인 후 저장하세요.`)
+    if (applied.length > 0) setTextFillMessage(`채운 항목: ${appliedLabels(applied)}. 확인 후 저장하세요.`)
     else setTextFillMessage('추출된 항목이 없습니다.')
   }
 
@@ -1595,7 +1601,7 @@ export default function App() {
       const { data } = await Tesseract.recognize(imageForOcr, 'kor+eng')
       const parsed = parseTextForOrder(data.text)
       const applied = applyParsedToForm(parsed)
-      if (applied.length > 0) setUrlFillMessage(`캡처에서 채운 항목: ${applied.join(', ')}. 확인 후 저장하세요.`)
+      if (applied.length > 0) setUrlFillMessage(`캡처에서 채운 항목: ${appliedLabels(applied)}. 확인 후 저장하세요.`)
       else setUrlFillMessage('캡처에서 추출된 항목이 없습니다. 품의서·청첩·부고 화면인지 확인하세요.')
     } catch (err) {
       setImageFillError(err instanceof Error ? err.message : '이미지 인식 실패')
