@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import imageCompression from 'browser-image-compression'
 import * as XLSX from 'xlsx'
 import { supabase, type Order } from './supabase'
@@ -914,6 +914,8 @@ export default function App() {
   const [imageFillError, setImageFillError] = useState<string | null>(null)
   const [textFillValue, setTextFillValue] = useState('')
   const [textFillMessage, setTextFillMessage] = useState<string | null>(null)
+  const [imageForOcr, setImageForOcr] = useState<File | null>(null)
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
   const [statementFormatKey, setStatementFormatKey] = useState<string>('default')
   const [clientStatementFormatFromDb, setClientStatementFormatFromDb] = useState<string | null>(null)
   const [saveStatementFormatAsDefault, setSaveStatementFormatAsDefault] = useState(false)
@@ -1515,6 +1517,71 @@ export default function App() {
     else setTextFillMessage('추출된 항목이 없습니다.')
   }
 
+  const handleImagePaste = (e: React.ClipboardEvent) => {
+    const item = Array.from(e.clipboardData?.items ?? []).find((i) => i.type.startsWith('image/'))
+    if (!item) return
+    const file = item.getAsFile()
+    if (!file) return
+    e.preventDefault()
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl)
+    setImageForOcr(file)
+    setImagePreviewUrl(URL.createObjectURL(file))
+    setUrlFillError(null)
+    setImageFillError(null)
+  }
+
+  const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !file.type.startsWith('image/')) return
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl)
+    setImageForOcr(file)
+    setImagePreviewUrl(URL.createObjectURL(file))
+    setUrlFillError(null)
+    setImageFillError(null)
+  }
+
+  const handleImageFill = async () => {
+    if (!imageForOcr) {
+      setImageFillError('캡처 이미지를 붙여넣기(Ctrl+V)하거나 파일을 선택하세요.')
+      return
+    }
+    setUrlFillError(null)
+    setUrlFillMessage(null)
+    setTextFillMessage(null)
+    setImageFillError(null)
+    setImageFillLoading(true)
+    try {
+      const Tesseract = (await import('tesseract.js')).default
+      const { data } = await Tesseract.recognize(imageForOcr, 'kor+eng')
+      const parsed = parseTextForOrder(data.text)
+      const applied = applyParsedToForm(parsed)
+      if (applied.length > 0) setUrlFillMessage(`캡처에서 채운 항목: ${applied.join(', ')}. 확인 후 저장하세요.`)
+      else setUrlFillMessage('캡처에서 추출된 항목이 없습니다. 품의서·청첩·부고 화면인지 확인하세요.')
+    } catch (err) {
+      setImageFillError(err instanceof Error ? err.message : '이미지 인식 실패')
+    } finally {
+      setImageFillLoading(false)
+    }
+  }
+
+  const handleAutoFill = async () => {
+    if (imageForOcr) {
+      await handleImageFill()
+      return
+    }
+    const v = textFillValue.trim()
+    if (!v) {
+      setTextFillMessage('URL 또는 텍스트를 붙여넣은 뒤 버튼을 눌러주세요.')
+      return
+    }
+    if (v.startsWith('http://') || v.startsWith('https://')) {
+      await handleUrlFill()
+    } else {
+      handleTextFill()
+    }
+  }
+
   const setRowUpdate = (row: Order, patch: Partial<RowDraft>) => {
     setRowUpdates((prev) => {
       const next = { ...prev }
@@ -1808,8 +1875,8 @@ export default function App() {
       <header style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>성원플라워 관리 대시보드</h1>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ ...cardStyle, minWidth: 200, padding: '14px 20px' }}>
-          <h2 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 600 }}>CSV 일괄 등록</h2>
+          <div style={{ ...cardStyle, minWidth: 200, padding: '14px 20px' }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 600 }}>CSV 일괄 등록</h2>
             <input type="file" accept=".csv" onChange={handleCsvFile} style={{ marginBottom: 6, fontSize: 12 }} disabled={csvFileLoading} />
             {csvFileLoading && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#334155' }}>파일 읽는 중…</p>}
             {csvImportError && <p style={{ margin: '0 0 4px', fontSize: 11, color: csvImportStatus === 'ok' ? '#047857' : '#dc2626' }}>{csvImportError}</p>}
@@ -1834,6 +1901,36 @@ export default function App() {
               <span style={{ color: '#64748b' }}>~</span>
               <input type="date" value={backupDateTo} onChange={(e) => setBackupDateTo(e.target.value)} style={{ padding: '5px 8px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12 }} />
             </div>
+          </div>
+          <div style={{ ...cardStyle, minWidth: 260, padding: '10px 14px' }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 600 }}>주문 자동 채우기</h2>
+            <p style={{ margin: '0 0 6px', fontSize: 12, color: '#64748b' }}>URL·텍스트·캡처를 붙여넣고 버튼을 누르면 주문 등록 폼이 채워집니다.</p>
+            <textarea
+              value={textFillValue}
+              onChange={(e) => {
+                const v = e.target.value
+                setTextFillValue(v)
+                setUrlFillValue(v)
+              }}
+              onPaste={handleImagePaste}
+              placeholder="URL 또는 품의/주문 메시지 붙여넣기 (캡처는 Ctrl+V)"
+              rows={3}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12, resize: 'vertical', minHeight: 60 }}
+            />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+              <input type="file" accept="image/*" onChange={handleImageFileSelect} style={{ fontSize: 11 }} />
+              <button type="button" onClick={handleAutoFill} style={{ padding: '6px 10px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>
+                자동으로 채우기
+              </button>
+            </div>
+            {imagePreviewUrl && (
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: '#64748b' }}>캡처 이미지 인식 준비됨</p>
+            )}
+            {(urlFillMessage || textFillMessage || urlFillError || imageFillError) && (
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: urlFillError || imageFillError ? '#dc2626' : '#047857' }}>
+                {urlFillError || imageFillError || urlFillMessage || textFillMessage}
+              </p>
+            )}
           </div>
         </div>
       </header>
@@ -2131,46 +2228,8 @@ export default function App() {
               </div>
             </div>
           </div>
-          {/* URL·텍스트로 주문 폼 채우기 — 매출 카드 하단 */}
-          <div style={{ ...cardStyle, minWidth: 320 }}>
-            <h3 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600 }}>URL·텍스트로 채우기</h3>
-            <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b' }}>근조/청첩 URL 또는 품의·메시지 텍스트를 붙여넣으면 주문 폼에 자동 입력됩니다.</p>
-            <label style={{ display: 'block', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>URL</span>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  type="url"
-                  value={urlFillValue}
-                  onChange={(e) => setUrlFillValue(e.target.value)}
-                  placeholder="https://..."
-                  style={{ flex: 1, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13 }}
-                />
-                <button type="button" onClick={handleUrlFill} disabled={urlFillLoading} style={{ padding: '8px 12px', background: '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: urlFillLoading ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
-                  {urlFillLoading ? '가져오는 중…' : 'URL에서 채우기'}
-                </button>
-              </div>
-            </label>
-            <label style={{ display: 'block', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>텍스트 (품의·메시지 등)</span>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <textarea
-                  value={textFillValue}
-                  onChange={(e) => setTextFillValue(e.target.value)}
-                  placeholder="품의서·주문 메시지 붙여넣기"
-                  rows={3}
-                  style={{ flex: 1, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13, resize: 'vertical', minHeight: 60 }}
-                />
-                <button type="button" onClick={handleTextFill} style={{ padding: '8px 12px', background: '#334155', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  텍스트에서 채우기
-                </button>
-              </div>
-            </label>
-            {(urlFillMessage || textFillMessage || urlFillError || imageFillError) && (
-              <p style={{ margin: '8px 0 0', fontSize: 12, color: urlFillError || imageFillError ? '#dc2626' : '#047857' }}>
-                {urlFillError || imageFillError || urlFillMessage || textFillMessage}
-              </p>
-            )}
-          </div>
+          {/* 예전 URL·텍스트 채우기 카드는 상단 헤더로 이동했습니다. 이 블록은 레이아웃 보존용으로 숨겨 둡니다. */}
+          <div style={{ ...cardStyle, minWidth: 320, display: 'none' }} />
         </div>
         <div style={{ ...cardStyle, flex: '0 0 auto', minWidth: 320 }}>
           <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>거래처 관리</h3>
