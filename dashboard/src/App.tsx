@@ -475,7 +475,7 @@ function yellowBalloonOrderToRow(o: Order, no: number, ordererName?: string): (s
   return ['', no, o.date ?? '', 상품명, ordererName?.trim() || '이상훈', 배송지, gCol, o.request_department ?? '', o.recipient ?? '', amount, o.notes ?? '']
 }
 
-/** 노랑풍선 주문 목록을 템플릿 블록별로 분리 (거래처 4~24, 임직원 27~31, 사내조경 32). 특이사항에 "본인결혼" 있으면 임직원 블록·사유 "본인결혼" */
+/** 노랑풍선 주문 목록을 템플릿 블록별로 분리 (거래처 4~24, 임직원 27~31, 사내조경 34). 특이사항에 "본인결혼" 있으면 임직원 블록·사유 "본인결혼" */
 function ordersToSectionsYellowBalloon(list: Order[]): { 장례식: Order[]; 결혼식: Order[]; 기타: Order[] } {
   const sections: { 장례식: Order[]; 결혼식: Order[]; 기타: Order[] } = { 장례식: [], 결혼식: [], 기타: [] }
   const branchOrClient = (o: Order) => (o.branch ?? '') + (o.client ?? '')
@@ -496,7 +496,8 @@ const 거래처_시작 = 4
 const 거래처_끝 = 24
 const 임직원_시작 = 27
 const 임직원_끝 = 31
-const 사내조경_행 = 32
+/** 템플릿: 32=임직원 소계, 33=헤더, 34=사내조경 데이터 */
+const 사내조경_행 = 34
 
 function colToLetter(col: number): string {
   if (col <= 26) return String.fromCharCode(64 + col)
@@ -554,8 +555,9 @@ function orderToCellValues(o: Order, section: '장례식' | '결혼식' | '기�
   const qty = o.quantity ?? 1
   const 금액 = price * qty
   const gCol = is결혼식 ? '본인결혼' : (branch || client || '')
+  const 구분 = section === '장례식' ? '거래처' : section === '결혼식' ? '임직원' : '사내\n조경'
   return {
-    구분: section === '장례식' ? '거래처' : '',
+    구분,
     no: 0,
     date: o.date ?? '', // 배달일자 = 배송일(date)
     상품명,
@@ -594,10 +596,10 @@ function fillYellowBalloonSheet(ws: XLSX.WorkSheet, ordersBySection: { 장례식
   }
   const 결혼식 = ordersBySection.결혼식 ?? []
   for (let i = 0; i < 결혼식.length && 임직원_시작 + i <= 임직원_끝; i++) {
-    writeRow(임직원_시작 + i, 결혼식[i], i + 1, false, '결혼식')
+    writeRow(임직원_시작 + i, 결혼식[i], i + 1, i === 0, '결혼식') // 첫 행에 A열 '임직원'
   }
   const 기타 = ordersBySection.기타 ?? []
-  if (기타.length > 0) writeRow(사내조경_행, 기타[0], 1, false, '기타')
+  if (기타.length > 0) writeRow(사내조경_행, 기타[0], 1, true, '기타') // A열 '사내\n조경'
 }
 
 /** 시트 이름이 "N월" 형식인지 (공백·전각 숫자 허용) */
@@ -606,36 +608,36 @@ function isMonthSheetName(name: string): boolean {
   return /^\d+월$/.test(t) || /[\d０-９]+월/.test(t)
 }
 
-/** 노랑풍선 엑셀 워크북 생성: 템플릿 있으면 해당 월 시트(또는 첫 번째 N월 시트)에 내용만 채우고, 없으면 flat 시트로 생성. 발주자=ordererName(미입력 시 이상훈) */
+/** 노랑풍선 엑셀 워크북 생성: 반드시 public/norang_template.xlsx 를 불러와 해당 월 시트에만 데이터 채움. 실패 시 예외. */
 async function buildYellowBalloonWorkbook(list: Order[], dateFrom: string, dateTo: string, ordererName?: string): Promise<{ wb: XLSX.WorkBook; fileName: string }> {
   const month = parseInt(dateFrom.slice(5, 7), 10) || 1
   const sheetName = `${month}월`
   const 발주자 = ordererName?.trim() || '이상훈'
+
+  const res = await fetch(`/norang_template.xlsx?t=${Date.now()}`, { cache: 'no-store' })
+  if (!res.ok) {
+    throw new Error(`템플릿을 불러올 수 없습니다. (HTTP ${res.status}) dashboard/public/norang_template.xlsx 를 확인해 주세요.`)
+  }
+  const ab = await res.arrayBuffer()
+  let wb: XLSX.WorkBook
   try {
-    // 캐시 방지: 항상 최신 템플릿 받기 (과거 잘못된 양식이 캐시돼 있으면 무시)
-    const res = await fetch(`/norang_template.xlsx?t=${Date.now()}`, { cache: 'no-store' })
-    if (res.ok) {
-      const ab = await res.arrayBuffer()
-      const wb = XLSX.read(ab, { type: 'array', cellStyles: true })
-      // 해당 월 시트가 있으면 사용, 없으면 첫 번째 "N월" 형식 시트 사용 (템플릿에 1월만 있어도 모든 월 데이터 채움)
-      const targetSheet = wb.SheetNames.includes(sheetName)
-        ? sheetName
-        : wb.SheetNames.find((n) => isMonthSheetName(n))
-      if (targetSheet) {
-        const ws = wb.Sheets[targetSheet]
-        fillYellowBalloonSheet(ws, ordersToSectionsYellowBalloon(list), month, 발주자)
-        return { wb, fileName: `2026년_${month}월_채움_결과.xlsx` }
-      }
+    wb = XLSX.read(ab, { type: 'array', cellStyles: true })
+  } catch {
+    try {
+      wb = XLSX.read(ab, { type: 'array' })
+    } catch (e) {
+      throw new Error('템플릿 엑셀 파일을 읽을 수 없습니다. public/norang_template.xlsx 파일이 손상되었는지 확인해 주세요.')
     }
-  } catch (_) {}
-  const headers = ['구분', 'No', '배달일자', '상품명', '발주자', '배송지', '거래처 명', '요청팀', '수령인', '금액', '비고']
-  const dataRows: (string | number)[][] = list.map((o, i) => yellowBalloonOrderToRow(o, i + 1, 발주자))
-  const totalAmount = dataRows.reduce((s, r) => s + (Number(r[9]) || 0), 0)
-  dataRows.push(['', '', '', '', '', '', '소 계', '', '', totalAmount, ''])
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows])
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, '경조화환발주내역')
-  return { wb, fileName: `2026년_경조화환발주내역_성원플라워_${dateFrom}_${dateTo}.xlsx` }
+  }
+  const targetSheet = wb.SheetNames.includes(sheetName)
+    ? sheetName
+    : wb.SheetNames.find((n) => isMonthSheetName(n))
+  if (!targetSheet) {
+    throw new Error(`템플릿에 "${sheetName}" 또는 "N월" 형식의 시트가 없습니다. public/norang_template.xlsx 를 확인해 주세요.`)
+  }
+  const ws = wb.Sheets[targetSheet]
+  fillYellowBalloonSheet(ws, ordersToSectionsYellowBalloon(list), month, 발주자)
+  return { wb, fileName: `2026년_${month}월_채움_결과.xlsx` }
 }
 
 function useClientList() {
@@ -1095,7 +1097,8 @@ export default function App() {
       const { wb, fileName } = await buildYellowBalloonWorkbook(list, yellowBalloonDateFrom.trim(), yellowBalloonDateTo.trim(), ordererName)
       XLSX.writeFile(wb, fileName)
     } catch (e) {
-      alert('내보내기 실패. 템플릿(public/norang_template.xlsx) 확인 후 다시 시도해 주세요.')
+      const msg = e instanceof Error ? e.message : '내보내기 실패. 템플릿(public/norang_template.xlsx) 확인 후 다시 시도해 주세요.'
+      alert(msg)
     }
   }
 
@@ -1151,8 +1154,13 @@ export default function App() {
       if (error) return
       const list = (rows ?? []) as Order[]
       const ordererName = (contactRes.data as { contact_name?: string } | null)?.contact_name?.trim() || undefined
-      const { wb, fileName } = await buildYellowBalloonWorkbook(list, dateFrom, dateTo, ordererName)
-      XLSX.writeFile(wb, fileName)
+      try {
+        const { wb, fileName } = await buildYellowBalloonWorkbook(list, dateFrom, dateTo, ordererName)
+        XLSX.writeFile(wb, fileName)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '노랑풍선 템플릿 내보내기 실패. public/norang_template.xlsx 확인 후 다시 시도해 주세요.'
+        alert(msg)
+      }
       return
     }
     if (exportFormat === 'entas_statement') {
@@ -1241,8 +1249,13 @@ export default function App() {
       if (error) return
       const list = (rows ?? []) as Order[]
       const ordererName = (contactRes.data as { contact_name?: string } | null)?.contact_name?.trim() || undefined
-      const { wb, fileName } = await buildYellowBalloonWorkbook(list, dateFrom, dateTo, ordererName)
-      XLSX.writeFile(wb, fileName)
+      try {
+        const { wb, fileName } = await buildYellowBalloonWorkbook(list, dateFrom, dateTo, ordererName)
+        XLSX.writeFile(wb, fileName)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '노랑풍선 템플릿 내보내기 실패. public/norang_template.xlsx 확인 후 다시 시도해 주세요.'
+        alert(msg)
+      }
     } else {
       const { data: rows, error } = await supabase.from('orders').select('*').eq('client', client).gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: true })
       setStatementExportLoading(false)
