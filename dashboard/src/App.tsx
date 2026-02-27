@@ -13,54 +13,161 @@ function parseTextForOrder(text: string): Partial<typeof emptyForm> {
   const t = text.replace(/\s+/g, ' ')
   const lines = raw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
 
-  // 날짜: "5. 날짜: 2026년 03월 01일" / YYYY년 MM월 DD일
-  const dateM = t.match(/(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})/)
-  if (dateM) {
-    const [, y, mon, d] = dateM
-    out.date = `${y}-${String(Number(mon)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`
+  // 날짜: "2026-02-28" (발주 희망일) / "발주 희망일: 2026-02-28" / "2026년 03월 01일"
+  const dateDash = t.match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (dateDash) {
+    out.date = dateDash[0]
+  } else {
+    const dateM = t.match(/(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})/)
+    if (dateM) {
+      const [, y, mon, d] = dateM
+      out.date = `${y}-${String(Number(mon)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`
+    }
   }
-  // 품목: 결혼/축하화환 → 축하화환, 근조/부고 → 근조화환
-  if (/결혼|청첩|축하|예식|웨딩|축하화환/i.test(t)) out.item = '축하화환'
+  // 품목: 결혼/청첩/축하/예식/웨딩/DATE & PLACE/마음 전하실 → 축하화환, 근조/부고 → 근조화환
+  if (/결혼|청첩|축하|예식|웨딩|축하화환|화환|DATE\s*&\s*PLACE|마음\s*전하실/i.test(t)) out.item = /장례|부고|근조|빈소|영결/i.test(t) ? '근조화환' : '축하화환'
   else if (/장례|부고|근조|빈소|영결|근조화환/i.test(t)) out.item = '근조화환'
 
-  // 2. 받는 분 이름: 고은지 / 1. 신부 이름: 고은지
+  // 받는 분 이름 / 신부 이름 / 받는사람 아래 "이름: 조완기"
   for (const line of lines) {
     const rec = line.match(/(?:받는\s*분\s*이름|신부\s*이름|받는이|수령인|성함)\s*[:\s]*([가-힣]{2,5})/i)
     if (rec) { out.recipient = rec[1].trim(); break }
   }
   if (!out.recipient) {
+    const nameLine = lines.find((l) => /이름\s*:/.test(l) && !/신청인/.test(l))
+    if (nameLine) {
+      const m = nameLine.match(/이름\s*(?:\([^)]*\))?\s*[:\s]*([가-힣]{2,5})/)
+      if (m) out.recipient = m[1].trim()
+    }
+  }
+  if (!out.recipient) {
+    const m = t.match(/이름\s*(?:\([^)]*\))?\s*[:\s]*([가-힣]{2,5})/)
+    if (m) out.recipient = m[1].trim()
+  }
+  if (!out.recipient) {
     const rec = t.match(/([가-힣]{2,4})\s*님\b/)
     if (rec) out.recipient = rec[1].trim()
   }
+  // 청첩: "신랑측 : 신한 조완기 110-..." / "신한 조완기 110-563-..."
+  if (!out.recipient) {
+    const groomBank = t.match(/신랑\s*측\s*[:\s]*(?:신한|국민|우리|농협|기업)\s+([가-힣]{2,5})\s+[0-9\-]+/i)
+    if (groomBank) out.recipient = groomBank[1].trim()
+  }
+  if (!out.recipient) {
+    const bankName = t.match(/(?:신한|국민|우리|농협|기업)\s+([가-힣]{2,5})\s+[0-9\-]{10,}/)
+    if (bankName) out.recipient = bankName[1].trim()
+  }
 
-  // 3. 연락처: 010-8802-0616
+  // 연락처 (라벨 있거나 010으로 시작하는 10~11자리 숫자)
   const phoneM = t.match(/(?:연락처|전화)\s*[:\s]*([0-9\-]{9,15})/)
   if (phoneM) out.ordererPhone = phoneM[1].replace(/\s/g, '').trim()
+  if (!out.ordererPhone) {
+    const phoneOnly = t.match(/\b(010[0-9\-]{8,11})\b/)
+    if (phoneOnly) out.ordererPhone = phoneOnly[1].replace(/\s/g, '').trim()
+  }
 
-  // 발신: "하나투어비즈니스 경영지원팀 ... 입니다" → 거래처
+  // 노랑풍선 내부 품의서 여부 (신청부서·발주 희망일·받는사람·회사명/소속 있으면 품의서)
+  const isNodeInternalPumsa = /신청\s*부서|신청부서|발주\s*희망일|받는\s*사람/.test(t) && /회사명|소속/.test(t)
+
+  // 거래처: 품의서면 무조건 노랑풍선. 아니면 "하나투어비즈니스 ... 입니다" / "회사명/소속: XXX"
+  let companyValue = ''
   const clientM = raw.match(/([가-힣a-zA-Z0-9]+(?:비즈니스|플라워|투어|항공|코리아|엔터테인먼트))\s+[\s\S]*?입니다/)
-  if (clientM) out.client = clientM[1].trim()
-
-  // 4. 예식장 주소: ... 웨스틴 서울 파르나스 하모니 볼룸(LLF)
-  const addrLine = lines.find((l) => /예식장\s*주소|배송장소|주소\s*:/.test(l))
-  if (addrLine) {
-    const addrContent = addrLine.replace(/^[\d.]+\s*(?:예식장\s*주소|배송장소|주소)\s*[:\s]*/i, '').replace(/\s+/g, ' ').trim()
-    const hallM = addrContent.match(/(.+?)\s+([가-힣a-zA-Z]+\s+(?:볼룸|홀|룸)\s*\([^)]*\))\s*$/i)
-    if (hallM) {
-      const beforeHall = hallM[1].trim()
-      const venueM = beforeHall.match(/([가-힣a-zA-Z]+\s+[가-힣a-zA-Z]+\s+[가-힣a-zA-Z]+)\s*$/)
-      out.location = venueM ? venueM[1].trim() : beforeHall
-      out.deliveryDetailAddress = hallM[2].trim()
-    } else {
-      out.location = addrContent
+  if (clientM) companyValue = clientM[1].trim()
+  if (!companyValue) {
+    const companyLine = lines.find((l) => /회사명|소속/.test(l) && /:/.test(l) && !/신청인/.test(l))
+    if (companyLine) {
+      const m = companyLine.match(/(?:회사명\s*\/\s*소속|회사명|소속)\s*[:\s]*([가-힣a-zA-Z0-9]+)/i)
+      if (m) companyValue = m[1].trim()
     }
   }
-  if (!out.location) {
-    const placePattern = /([가-힣a-zA-Z\s]{2,30}?(?:장례식장|결혼식장|예식장|병원|호텔|홀))/g
+  if (!companyValue) {
+    const m = t.match(/(?:회사명\s*\/\s*소속|회사명)\s*[:\s]*([가-힣a-zA-Z0-9]+)/i)
+    if (m) companyValue = m[1].trim()
+  }
+  if (isNodeInternalPumsa) {
+    out.client = '노랑풍선'
+    if (companyValue) out.branch = companyValue
+  } else if (companyValue) {
+    out.client = companyValue
+  }
+
+  // 신청부서·주문자: 품의서 "신청부서: 항공기획팀" 또는 캡처 "신청부서 항공기획팀"
+  const deptLine = lines.find((l) => /신청\s*부서\s*[:\s]/.test(l) || /신청부서\s*[:\s]/.test(l) || /신청부서\s+[가-힣a-zA-Z0-9/]/.test(l))
+  if (deptLine) {
+    const m =
+      deptLine.match(/신청\s*부서\s*[:\s]*([가-힣a-zA-Z0-9/]+)/i) ||
+      deptLine.match(/신청부서\s*[:\s]*([가-힣a-zA-Z0-9/]+)/i) ||
+      deptLine.match(/신청부서\s+([가-힣a-zA-Z0-9/]+)/)
+    if (m) out.requestDepartment = m[1].trim()
+  }
+  const applicantLine = lines.find((l) => /신청인\s*:/.test(l))
+  if (applicantLine) {
+    const m = applicantLine.match(/신청인\s*[:\s]*([가-힣a-zA-Z0-9()]+)/i)
+    if (m) out.orderer = m[1].trim()
+  }
+
+  // 주소: 품의서면 "주소" → 배송 세부 주소(deliveryDetailAddress). 그 외 "예식장 주소" 등 → location
+  const addrLine =
+    lines.find((l) => /예식장\s*주소|배송장소|주소\s*:/.test(l) || /^\s*주소\s*:/.test(l.trim())) ??
+    lines.find((l) => /\b주소\b/.test(l) && /(?:경기|서울|인천|부산|대구|광주|대전|울산|세종|제주|시|도|구|동|로|길|번지)/.test(l))
+  if (addrLine) {
+    let addrContent = addrLine
+      .replace(/^[\d.]+\s*/i, '')
+      .replace(/(?:예식장\s*주소|배송장소|주소)\s*[:\s]*/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!addrContent && /\b주소\b/.test(addrLine)) {
+      const after = addrLine.replace(/^[\d.]+\s*/i, '').replace(/.+?\b주소\b\s*[:\s]*/i, '').replace(/\s+/g, ' ').trim()
+      if (after) addrContent = after
+    }
+    if (addrContent && isNodeInternalPumsa) {
+      out.deliveryDetailAddress = addrContent
+    } else if (addrContent) {
+      const hallM = addrContent.match(/(.+?)\s+([가-힣a-zA-Z]+\s+(?:볼룸|홀|룸)\s*\([^)]*\))\s*$/i)
+      if (hallM) {
+        const beforeHall = hallM[1].trim()
+        const venueM = beforeHall.match(/([가-힣a-zA-Z]+\s+[가-힣a-zA-Z]+\s+[가-힣a-zA-Z]+)\s*$/)
+        out.location = venueM ? venueM[1].trim() : beforeHall
+        out.deliveryDetailAddress = hallM[2].trim()
+      } else {
+        out.location = addrContent
+      }
+    }
+  }
+  if (!out.location && !isNodeInternalPumsa) {
+    const placePattern = /([가-힣a-zA-Z\s\/0-9]{2,40}?(?:장례식장|결혼식장|예식장|컨벤션\s*웨딩|병원|호텔|홀))/g
     let pm: RegExpExecArray | null
     while ((pm = placePattern.exec(t)) !== null) {
       out.location = pm[1].replace(/\s+/g, ' ').trim()
       break
+    }
+  }
+  // 청첩 Address: / Venue: (영문) 또는 "경기 부천시 ... 239" 한 줄
+  if (!out.deliveryDetailAddress) {
+    const addrEn = t.match(/(?:Address|주소)\s*[:\s]*([가-힣a-zA-Z0-9\s\-·()]+?)(?=\s*(?:Tel|Phone|Venue|마음|$))/i)
+    if (addrEn) {
+      const a = addrEn[1].replace(/\s+/g, ' ').trim()
+      if (a.length >= 5) out.deliveryDetailAddress = a
+    }
+  }
+  if (!out.deliveryDetailAddress && /경기|서울|인천|부산|대구|광주|대전/.test(t)) {
+    const addrKr = t.match(/((?:경기|서울|인천|부산|대구|광주|대전|울산|세종|제주)[가-힣a-zA-Z0-9\s\-·()]+(?:번지|\d+[\-\d]*)?)/)
+    if (addrKr) {
+      const a = addrKr[1].replace(/\s+/g, ' ').trim()
+      if (a.length >= 8) out.deliveryDetailAddress = a
+    }
+  }
+  if (!out.location && /Venue|장소|예식장/i.test(t)) {
+    const venueEn = t.match(/(?:Venue|장소)\s*[:\s]*([가-힣a-zA-Z0-9\s\/\-]+?)(?=\s*(?:Address|주소|Tel|$))/i)
+    if (venueEn) out.location = venueEn[1].replace(/\s+/g, ' ').trim()
+  }
+
+  // 품의서인데 아직 배송 세부 주소 없으면 전체 텍스트에서 "주소" 뒤 문자열 추출
+  if (isNodeInternalPumsa && !out.deliveryDetailAddress) {
+    const addrInText = t.match(/\b주소\s*[:\s]*([가-힣a-zA-Z0-9\s\-·]+?)(?=\s*(?:연락처|전화|신청|발주|$))/i)
+    if (addrInText) {
+      const a = addrInText[1].replace(/\s+/g, ' ').trim()
+      if (a.length >= 5) out.deliveryDetailAddress = a
     }
   }
 
@@ -182,7 +289,7 @@ function buildStatementHtml(
 ): string {
   const fmtNum = (n: number) => n.toLocaleString('ko-KR')
   const esc = (s: string) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-  const requestColumnLabel = kind === 'general' ? '요청부서' : '요청인'
+  const requestColumnLabel = kind === 'general' ? '신청부서' : '요청인'
   const rows = list.map((o) => {
     const [y, m, d] = (o.date ?? '').split('-').map(Number)
     const month = m ?? ''
@@ -525,7 +632,7 @@ function yellowBalloonOrderToRow(o: Order, no: number, ordererName?: string): (s
   const 배송지 = detailAddr ? `${location} ${detailAddr}`.trim() : location
   const branch = (o.branch ?? '').trim()
   const client = (o.client ?? '').trim()
-  const is임직원 = /노랑풍선/.test(branch || client) || /본인결혼/.test(o.notes ?? '')
+  const is임직원 = /본인결혼/.test(o.notes ?? '') || /박해진/.test((o.recipient ?? '').trim())
   let 상품명 = item
   if (/결혼|결혼화환/.test(item)) 상품명 = '결혼화환'
   else if (/장례식장/.test(location)) 상품명 = '근조화환'
@@ -536,13 +643,14 @@ function yellowBalloonOrderToRow(o: Order, no: number, ordererName?: string): (s
   return ['', no, o.date ?? '', 상품명, ordererName?.trim() || '이상훈', 배송지, gCol, o.request_department ?? '', o.recipient ?? '', amount, o.notes ?? '']
 }
 
-/** 노랑풍선 주문 목록을 템플릿 블록별로 분리 (거래처 4~24, 임직원 27~31, 사내조경 34). 특이사항에 "본인결혼" 있으면 임직원 블록·사유 "본인결혼" */
+/** 노랑풍선 주문 목록을 템플릿 블록별로 분리 (거래처 4~24, 임직원 27~31, 사내조경 34). 임직원은 특이사항 "본인결혼" 또는 수령인 "박해진"인 경우만 */
 function ordersToSectionsYellowBalloon(list: Order[]): { 장례식: Order[]; 결혼식: Order[]; 기타: Order[] } {
   const sections: { 장례식: Order[]; 결혼식: Order[]; 기타: Order[] } = { 장례식: [], 결혼식: [], 기타: [] }
-  const branchOrClient = (o: Order) => (o.branch ?? '') + (o.client ?? '')
   const itemOrNotes = (o: Order) => (o.item ?? '') + (o.notes ?? '')
+  const 수령인 = (o: Order) => (o.recipient ?? '').trim()
   for (const o of list) {
-    if (/노랑풍선/.test(branchOrClient(o)) || /본인결혼/.test(o.notes ?? '')) {
+    const is본인결혼 = /본인결혼/.test(o.notes ?? '') || /박해진/.test(수령인(o))
+    if (is본인결혼) {
       sections.결혼식.push(o)
       continue
     }
@@ -565,17 +673,20 @@ function colToLetter(col: number): string {
   return String.fromCharCode(64 + Math.floor((col - 1) / 26)) + String.fromCharCode(64 + ((col - 1) % 26) + 1)
 }
 
-/** 템플릿 셀은 값만 수정하고 기존 스타일(s)은 유지 */
-function setCell(ws: XLSX.WorkSheet, row: number, col: number, value: string | number | null | undefined): void {
-  if (value == null || value === '') return
+/** 템플릿 셀은 값만 수정하고 기존 스타일(s)은 유지. allowEmpty면 빈 문자열도 기록(요청팀 등 누락 방지) */
+function setCell(ws: XLSX.WorkSheet, row: number, col: number, value: string | number | null | undefined, allowEmpty?: boolean): void {
+  if (value == null || value === '') {
+    if (!allowEmpty) return
+  }
   const ref = colToLetter(col) + row
   const t = typeof value === 'number' ? 'n' : 's'
+  const v = value == null || value === '' ? '' : value
   const existing = ws[ref] as { t?: string; v?: unknown; s?: unknown } | undefined
   if (existing && 's' in existing && existing.s !== undefined) {
     existing.t = t
-    existing.v = value
+    existing.v = v
   } else {
-    ws[ref] = { t, v: value }
+    ws[ref] = { t, v }
   }
 }
 
@@ -625,7 +736,7 @@ function orderToCellValues(o: Order, section: '장례식' | '결혼식' | '기�
     발주자: ordererName?.trim() || '이상훈',
     배송지,
     gCol,
-    요청팀: o.request_department ?? '',
+    요청팀: (o.request_department ?? '').trim(),
     수령인: o.recipient ?? '',
     금액,
     비고: o.notes ?? '',
@@ -646,7 +757,7 @@ function fillYellowBalloonSheet(ws: XLSX.WorkSheet, ordersBySection: { 장례식
     setCell(ws, rowIndex, 5, v.발주자)
     setCell(ws, rowIndex, 6, v.배송지)
     setCell(ws, rowIndex, 7, v.gCol)
-    setCell(ws, rowIndex, 8, v.요청팀)
+    setCell(ws, rowIndex, 8, v.요청팀, true) // H열 요청팀: 요청부서 데이터 항상 반영(빈 값도 기록)
     setCell(ws, rowIndex, 9, v.수령인)
     setCell(ws, rowIndex, 10, v.금액)
     setCell(ws, rowIndex, 11, v.비고)
@@ -950,6 +1061,8 @@ export default function App() {
   const [textFillMessage, setTextFillMessage] = useState<string | null>(null)
   const [imageForOcr, setImageForOcr] = useState<File | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
+  const imagePreviewUrlRef = useRef<string | null>(null)
+  imagePreviewUrlRef.current = imagePreviewUrl
   const [statementFormatKey, setStatementFormatKey] = useState<string>('default')
   const [clientStatementFormatFromDb, setClientStatementFormatFromDb] = useState<string | null>(null)
   const [saveStatementFormatAsDefault, setSaveStatementFormatAsDefault] = useState(false)
@@ -967,6 +1080,26 @@ export default function App() {
       setStatementFormatKey(key ?? 'default')
     })
   }, [searchClient])
+
+  // 페이지 어디서든 이미지 붙여넣기(Ctrl+V) 시 캡처로 받기 (textarea 포커스 없어도 동작)
+  useEffect(() => {
+    const onDocPaste = (e: ClipboardEvent) => {
+      const items = Array.from(e.clipboardData?.items ?? [])
+      const imageItem = items.find((i) => i.type.startsWith('image/'))
+      if (!imageItem) return
+      const file = imageItem.getAsFile()
+      if (!file) return
+      e.preventDefault()
+      if (imagePreviewUrlRef.current) URL.revokeObjectURL(imagePreviewUrlRef.current)
+      setImageForOcr(file)
+      setImagePreviewUrl(URL.createObjectURL(file))
+      setUrlFillError(null)
+      setImageFillError(null)
+      setUrlFillMessage('캡처가 붙여넣어졌습니다. [자동으로 채우기]를 누르세요.')
+    }
+    document.addEventListener('paste', onDocPaste, true)
+    return () => document.removeEventListener('paste', onDocPaste, true)
+  }, [])
 
   const STATEMENT_FORMATS: { key: string; label: string }[] = [
     { key: 'default', label: '기본 양식' },
@@ -1105,7 +1238,7 @@ export default function App() {
     return s
   }
 
-  const backupCsvHeaders = ['배송일', '거래처', '지점명', '요청부서', '품목', '받는이', '플랫폼', '수주화원', '평점', '사유', '배송사진', '배송사진2', '배송장소', '지역', '특이사항', '판매가', '발주가', '수익', '수량']
+  const backupCsvHeaders = ['배송일', '거래처', '지점명', '신청부서', '품목', '받는이', '플랫폼', '수주화원', '평점', '사유', '배송사진', '배송사진2', '배송장소', '배송세부주소', '보내는분', '지역', '특이사항', '판매가', '발주가', '수익', '수량', '주문자', '연락처']
   const orderToCsvCells = (o: Order) => [
     o.date,
     o.client ?? '',
@@ -1120,25 +1253,33 @@ export default function App() {
     o.delivery_photo ?? '',
     o.delivery_photo_2 ?? '',
     o.location ?? '',
+    o.delivery_detail_address ?? '',
+    o.sender ?? '',
     o.region ?? '',
     o.notes ?? '',
     o.price ?? '',
     o.cost ?? '',
     o.profit ?? '',
     o.quantity ?? '',
+    o.orderer_name ?? '',
+    o.orderer_phone ?? '',
   ]
 
-  const handleBackupExport = async () => {
-    if (!supabase || !backupDateFrom.trim() || !backupDateTo.trim()) return
-    setBackupLoading(true)
+  const AUTO_BACKUP_STORAGE_KEY = 'sungwon_flower_last_auto_backup'
+  const AUTO_BACKUP_INTERVAL_DAYS = 7
+
+  const runBackupExport = async (dateFrom: string, dateTo: string, setLoading?: (v: boolean) => void): Promise<boolean> => {
+    if (!supabase || !dateFrom.trim() || !dateTo.trim()) return false
+    setLoading?.(true)
     const { data: rows, error } = await supabase
       .from('orders')
       .select('*')
-      .gte('date', backupDateFrom.trim())
-      .lte('date', backupDateTo.trim())
+      .gte('date', dateFrom.trim())
+      .lte('date', dateTo.trim())
       .order('date', { ascending: true })
-    setBackupLoading(false)
-    if (error) return
+      .limit(5000)
+    setLoading?.(false)
+    if (error) return false
     const list = (rows ?? []) as Order[]
     const csvLines = [backupCsvHeaders.join(',')]
     for (const o of list) csvLines.push(orderToCsvCells(o).map(escapeCsv).join(','))
@@ -1147,16 +1288,37 @@ export default function App() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `주문백업_${backupDateFrom}_${backupDateTo}.csv`
+    a.download = `주문백업_${dateFrom}_${dateTo}.csv`
     a.click()
     URL.revokeObjectURL(url)
+    return true
   }
+
+  const handleBackupExport = async () => {
+    await runBackupExport(backupDateFrom, backupDateTo, setBackupLoading)
+  }
+
+  useEffect(() => {
+    if (!supabase) return
+    const last = localStorage.getItem(AUTO_BACKUP_STORAGE_KEY)
+    const today = new Date()
+    const todayStr = today.toISOString().slice(0, 10)
+    const lastDate = last ? new Date(last) : null
+    const needBackup = !lastDate || (today.getTime() - lastDate.getTime() >= AUTO_BACKUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000)
+    if (!needBackup) return
+    const from = new Date(today)
+    from.setDate(from.getDate() - AUTO_BACKUP_INTERVAL_DAYS)
+    const dateFrom = from.toISOString().slice(0, 10)
+    runBackupExport(dateFrom, todayStr).then((ok) => {
+      if (ok) localStorage.setItem(AUTO_BACKUP_STORAGE_KEY, todayStr)
+    })
+  }, [supabase])
 
   const handleYellowBalloonExcel = async () => {
     if (!supabase || !yellowBalloonDateFrom.trim() || !yellowBalloonDateTo.trim()) return
     setYellowBalloonExportLoading(true)
     const [ordersRes, contactRes] = await Promise.all([
-      supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', yellowBalloonDateFrom.trim()).lte('date', yellowBalloonDateTo.trim()).order('date', { ascending: true }),
+      supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', yellowBalloonDateFrom.trim()).lte('date', yellowBalloonDateTo.trim()).order('date', { ascending: true }).limit(5000), // request_department(요청부서) 포함
       supabase.from('client_contacts').select('contact_name').eq('client_name', '노랑풍선').maybeSingle(),
     ])
     setYellowBalloonExportLoading(false)
@@ -1217,10 +1379,10 @@ export default function App() {
       if (!supabase) return
       setYellowBalloonExportLoading(true)
       const [ordersRes, contactRes] = await Promise.all([
-        supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: true }),
-        supabase.from('client_contacts').select('contact_name').eq('client_name', '노랑풍선').maybeSingle(),
-      ])
-      setYellowBalloonExportLoading(false)
+supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: true }).limit(5000),
+      supabase.from('client_contacts').select('contact_name').eq('client_name', '노랑풍선').maybeSingle(),
+    ])
+      setYellowBalloonExportLoading(false) // select('*')에 request_department 포함
       const { data: rows, error } = ordersRes
       if (error) return
       const list = (rows ?? []) as Order[]
@@ -1312,9 +1474,9 @@ export default function App() {
       URL.revokeObjectURL(url)
     } else if (exportFormat === 'yellow_balloon') {
       const [ordersRes, contactRes] = await Promise.all([
-        supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: true }),
-        supabase.from('client_contacts').select('contact_name').eq('client_name', '노랑풍선').maybeSingle(),
-      ])
+supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: true }).limit(5000),
+      supabase.from('client_contacts').select('contact_name').eq('client_name', '노랑풍선').maybeSingle(),
+    ])
       setStatementExportLoading(false)
       const { data: rows, error } = ordersRes
       if (error) return
@@ -1499,7 +1661,7 @@ export default function App() {
   const updateForm = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }))
 
   const FIELD_LABELS: Record<string, string> = {
-    date: '배송일', client: '거래처', branch: '지점명', requestDepartment: '요청부서', item: '품목', recipient: '받는이',
+    date: '배송일', client: '거래처', branch: '지점명', requestDepartment: '신청부서', item: '품목', recipient: '받는이',
     provider: '플랫폼', partner: '수주화원', location: '배송장소', deliveryDetailAddress: '배송 세부주소', sender: '보내는 분',
     region: '지역', notes: '특이사항', price: '판매가', cost: '발주가', quantity: '수량', orderer: '주문자', ordererPhone: '연락처',
   }
@@ -1540,7 +1702,9 @@ export default function App() {
       if (applied.length > 0) setUrlFillMessage(`채운 항목: ${appliedLabels(applied)}. 확인 후 저장하세요.`)
       else setUrlFillMessage('추출된 항목이 없습니다. URL이 근조/청첩 페이지인지 확인하세요.')
     } catch (e) {
-      setUrlFillError(e instanceof Error ? e.message : '요청 실패')
+      const msg = e instanceof Error ? e.message : '요청 실패'
+      const isNetworkError = /Failed to fetch|NetworkError|Load failed/i.test(msg)
+      setUrlFillError(isNetworkError ? 'URL 가져오기에 실패했습니다. 로컬에서는 API가 없을 수 있으니, 청첩/근조 페이지 텍스트를 복사해 붙여넣거나 캡처 이미지를 사용하세요.' : msg + (msg.includes('404') || msg.includes('Failed') ? ' (로컬에서는 텍스트 붙여넣기 또는 캡처를 사용하세요.)' : ''))
     } finally {
       setUrlFillLoading(false)
     }
@@ -1563,16 +1727,23 @@ export default function App() {
   }
 
   const handleImagePaste = (e: React.ClipboardEvent) => {
-    const item = Array.from(e.clipboardData?.items ?? []).find((i) => i.type.startsWith('image/'))
-    if (!item) return
-    const file = item.getAsFile()
-    if (!file) return
-    e.preventDefault()
-    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl)
-    setImageForOcr(file)
-    setImagePreviewUrl(URL.createObjectURL(file))
-    setUrlFillError(null)
-    setImageFillError(null)
+    const items = Array.from(e.clipboardData?.items ?? [])
+    const imageItem = items.find((i) => i.type.startsWith('image/'))
+    const textItem = items.find((i) => i.type === 'text/plain')
+    const pastedText = textItem ? (e.clipboardData.getData('text/plain') || '').trim() : ''
+    const hasLongText = pastedText.length > 20
+    if (imageItem && !hasLongText) {
+      const file = imageItem.getAsFile()
+      if (file) {
+        e.preventDefault()
+        if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl)
+        setImageForOcr(file)
+        setImagePreviewUrl(URL.createObjectURL(file))
+        setUrlFillError(null)
+        setImageFillError(null)
+        setUrlFillMessage('캡처가 붙여넣어졌습니다. [자동으로 채우기]를 누르세요.')
+      }
+    }
   }
 
   const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1611,20 +1782,26 @@ export default function App() {
   }
 
   const handleAutoFill = async () => {
+    const v = textFillValue.trim()
+    const isUrl = v.startsWith('http://') || v.startsWith('https://')
+    if (isUrl) {
+      if (imageForOcr && imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl)
+        setImageForOcr(null)
+        setImagePreviewUrl(null)
+      }
+      await handleUrlFill()
+      return
+    }
     if (imageForOcr) {
       await handleImageFill()
       return
     }
-    const v = textFillValue.trim()
     if (!v) {
       setTextFillMessage('URL 또는 텍스트를 붙여넣은 뒤 버튼을 눌러주세요.')
       return
     }
-    if (v.startsWith('http://') || v.startsWith('https://')) {
-      await handleUrlFill()
-    } else {
-      handleTextFill()
-    }
+    handleTextFill()
   }
 
   const setRowUpdate = (row: Order, patch: Partial<RowDraft>) => {
@@ -1931,7 +2108,7 @@ export default function App() {
               value={textFillValue}
               onChange={(e) => { const v = e.target.value; setTextFillValue(v); setUrlFillValue(v); }}
               onPaste={handleImagePaste}
-              placeholder="URL 또는 품의/주문 메시지 붙여넣기 (캡처는 Ctrl+V)"
+              placeholder="청첩/근조 URL 또는 품의 메시지 붙여넣기 · 캡처는 Ctrl+V 또는 파일 선택"
               rows={1}
               style={{ flex: 1, minWidth: 180, padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 12, resize: 'vertical', minHeight: 32 }}
             />
@@ -1941,6 +2118,7 @@ export default function App() {
             </button>
           </div>
           {imagePreviewUrl && <span style={{ fontSize: 10, color: '#64748b', marginRight: 6 }}>캡처 준비됨</span>}
+          <span style={{ fontSize: 10, color: '#94a3b8' }}>URL 입력 → 페이지 텍스트 추출 · 캡처/이미지 → OCR 인식</span>
           {(urlFillMessage || textFillMessage || urlFillError || imageFillError) && (
             <p style={{ margin: '2px 0 0', fontSize: 10, color: urlFillError || imageFillError ? '#dc2626' : '#047857' }}>
               {urlFillError || imageFillError || urlFillMessage || textFillMessage}
@@ -2064,8 +2242,8 @@ export default function App() {
               )}
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>요청부서</span>
-              <input type="text" value={form.requestDepartment} onChange={(e) => updateForm('requestDepartment', e.target.value)} placeholder="요청부서" style={inputStyle} />
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>신청부서</span>
+              <input type="text" value={form.requestDepartment} onChange={(e) => updateForm('requestDepartment', e.target.value)} placeholder="신청부서" style={inputStyle} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>받는이</span>
@@ -2524,7 +2702,7 @@ export default function App() {
                   <th style={{ ...thStyle, width: 90 }}>품목</th>
                   <th style={{ ...thStyle, minWidth: 135 }}>거래처</th>
                   <th style={{ ...thStyle, width: 135 }}>지점명</th>
-                  <th style={thStyle}>요청부서</th>
+                  <th style={thStyle}>신청부서</th>
                   <th style={thStyle}>받는이</th>
                   <th style={{ ...thStyle, minWidth: 115 }}>플랫폼</th>
                   <th style={{ ...thStyle, width: 109 }}>수주화원</th>
@@ -2533,8 +2711,6 @@ export default function App() {
                   <th style={{ ...thStyle, background: '#f1f5f9', width: 293 }}>배송사진</th>
                   <th style={{ ...thStyle, background: '#f1f5f9', width: 90 }}>저장</th>
                   <th style={{ ...thStyle, minWidth: 130 }}>배송장소</th>
-                  <th style={thStyle}>세부주소</th>
-                  <th style={thStyle}>보내는 분</th>
                   <th style={thStyle}>지역</th>
                   <th style={thStyle}>특이사항</th>
                   <th style={thStyle}>판매가</th>
@@ -2646,8 +2822,6 @@ export default function App() {
                         {savedRowId === row.id && <span style={{ marginLeft: 6, fontSize: 12, color: '#047857', fontWeight: 600 }}>저장됨</span>}
                       </td>
                       <td style={tdStyle}>{row.location ?? '-'}</td>
-                      <td style={tdStyle}>{row.delivery_detail_address ?? '-'}</td>
-                      <td style={tdStyle}>{row.sender ?? '-'}</td>
                       <td style={tdStyle}>{row.region ?? '-'}</td>
                       <td style={tdStyle}>{row.notes ?? '-'}</td>
                       <td style={tdStyle}>{formatNum(row.price)}</td>
