@@ -2103,37 +2103,12 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
 
   return (
     <div style={{ width: '99%', maxWidth: '99%', margin: '0 auto', padding: '8px 24px 16px', minHeight: '100vh', boxSizing: 'border-box', overflowX: 'auto' }}>
-      <header style={{ marginBottom: 4 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>성원플라워 관리 대시보드</h1>
+      <header style={{ marginBottom: 20 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, ...cardStyle, display: 'inline-block', padding: '10px 16px' }}>성원플라워 관리 대시보드</h1>
       </header>
 
       <section style={{ display: 'flex', gap: 16, marginBottom: 32, alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-        <div style={{ flex: '0 0 900px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {/* 주문 자동 채우기 — 상하 폭 최소 */}
-        <div style={{ ...cardStyle, width: '100%', maxWidth: 900, boxSizing: 'border-box', padding: '6px 10px' }}>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, fontWeight: 600 }}>주문 자동 채우기</span>
-            <textarea
-              value={textFillValue}
-              onChange={(e) => { const v = e.target.value; setTextFillValue(v); setUrlFillValue(v); }}
-              onPaste={handleImagePaste}
-              placeholder="청첩/근조 URL 또는 품의 메시지 붙여넣기 · 캡처는 Ctrl+V 또는 파일 선택"
-              rows={1}
-              style={{ flex: 1, minWidth: 180, padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 12, resize: 'vertical', minHeight: 32 }}
-            />
-            <input type="file" accept="image/*" onChange={handleImageFileSelect} style={{ fontSize: 10 }} />
-            <button type="button" onClick={handleAutoFill} disabled={urlFillLoading || imageFillLoading} style={{ padding: '4px 10px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, cursor: urlFillLoading || imageFillLoading ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
-              {urlFillLoading ? '가져오는 중…' : imageFillLoading ? '인식 중…' : '자동으로 채우기'}
-            </button>
-          </div>
-          {imagePreviewUrl && <span style={{ fontSize: 10, color: '#64748b', marginRight: 6 }}>캡처 준비됨</span>}
-          <span style={{ fontSize: 10, color: '#94a3b8' }}>URL 입력 → 페이지 텍스트 추출 · 캡처/이미지 → OCR 인식</span>
-          {(urlFillMessage || textFillMessage || urlFillError || imageFillError) && (
-            <p style={{ margin: '2px 0 0', fontSize: 10, color: urlFillError || imageFillError ? '#dc2626' : '#047857' }}>
-              {urlFillError || imageFillError || urlFillMessage || textFillMessage}
-            </p>
-          )}
-        </div>
+        <div style={{ flex: '0 0 900px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* 주문 등록 영역 폭: 900px 고정 */}
         <div style={{ ...cardStyle, width: '100%', maxWidth: 900, boxSizing: 'border-box', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -2387,7 +2362,7 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
         </form>
         </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 16, flex: '0 0 auto', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 16, flex: '0 0 auto', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: '0 0 auto' }}>
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -2419,36 +2394,8 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
               </div>
             </div>
           </div>
-          {/* CSV 일괄 등록 · 데이터 백업 — 매출/주문건수 카드 바로 아래, 위·아래로 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ ...cardStyle, padding: '8px 12px', minWidth: 160 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>CSV 일괄 등록</div>
-              <input type="file" accept=".csv" onChange={handleCsvFile} style={{ marginBottom: 4, fontSize: 11 }} disabled={csvFileLoading} />
-              {csvFileLoading && <p style={{ margin: 0, fontSize: 11, color: '#334155' }}>읽는 중…</p>}
-              {csvImportError && <p style={{ margin: 0, fontSize: 10, color: csvImportStatus === 'ok' ? '#047857' : '#dc2626' }}>{csvImportError}</p>}
-              {!csvFileLoading && csvParsedRows != null && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11 }}><strong>{csvParsedRows.length}</strong>건</span>
-                  <button type="button" onClick={handleCsvBulkInsert} disabled={csvImportStatus === 'importing'} style={{ padding: '4px 8px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>
-                    {csvImportStatus === 'importing' ? '등록 중…' : csvImportStatus === 'ok' ? '완료' : '일괄 등록'}
-                  </button>
-                </div>
-              )}
-            </div>
-            <div style={{ ...cardStyle, padding: '8px 12px', minWidth: 160 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>데이터 백업</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <button type="button" onClick={handleBackupExport} disabled={backupLoading} style={{ padding: '4px 8px', background: '#475569', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, cursor: backupLoading ? 'wait' : 'pointer' }}>
-                  {backupLoading ? '백업 중…' : 'CSV로 백업'}
-                </button>
-                <input type="date" value={backupDateFrom} onChange={(e) => setBackupDateFrom(e.target.value)} style={{ padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 11 }} />
-                <span style={{ color: '#64748b', fontSize: 11 }}>~</span>
-                <input type="date" value={backupDateTo} onChange={(e) => setBackupDateTo(e.target.value)} style={{ padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 11 }} />
-              </div>
-            </div>
-          </div>
         </div>
-        <div style={{ ...cardStyle, flex: '0 0 auto', minWidth: 320 }}>
+        <div style={{ ...cardStyle, flex: '0 0 800px', width: 800, minWidth: 800, maxWidth: 800, boxSizing: 'border-box' }}>
           <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>거래처 관리</h3>
           <p style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>거래처를 선택하면 해당 담당자의 정보가 표시됩니다. 수정 후 저장하세요.</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
@@ -2551,6 +2498,37 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+        {/* CSV 일괄 등록 · 데이터 백업 — 거래처 관리 오른쪽 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: '0 0 auto' }}>
+          <div style={{ ...cardStyle, padding: '8px 12px', minWidth: 220, maxWidth: 220, boxSizing: 'border-box' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>CSV 일괄 등록</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <input type="file" accept=".csv" onChange={handleCsvFile} style={{ marginBottom: 4, fontSize: 11 }} disabled={csvFileLoading} id="csv-file-input" />
+              <label htmlFor="csv-file-input" style={{ fontSize: 11, color: '#64748b', cursor: 'pointer' }}>선택된 파일 없음</label>
+            </div>
+            {csvFileLoading && <p style={{ margin: 0, fontSize: 11, color: '#334155' }}>읽는 중…</p>}
+            {csvImportError && <p style={{ margin: 0, fontSize: 10, color: csvImportStatus === 'ok' ? '#047857' : '#dc2626' }}>{csvImportError}</p>}
+            {!csvFileLoading && csvParsedRows != null && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11 }}><strong>{csvParsedRows.length}</strong>건</span>
+                <button type="button" onClick={handleCsvBulkInsert} disabled={csvImportStatus === 'importing'} style={{ padding: '4px 8px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>
+                  {csvImportStatus === 'importing' ? '등록 중…' : csvImportStatus === 'ok' ? '완료' : '일괄 등록'}
+                </button>
+              </div>
+            )}
+          </div>
+          <div style={{ ...cardStyle, padding: '8px 12px', minWidth: 220, maxWidth: 220, boxSizing: 'border-box' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>데이터 백업</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <button type="button" onClick={handleBackupExport} disabled={backupLoading} style={{ padding: '4px 8px', background: '#475569', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, cursor: backupLoading ? 'wait' : 'pointer' }}>
+                {backupLoading ? '백업 중…' : 'CSV로 백업'}
+              </button>
+              <input type="date" value={backupDateFrom} onChange={(e) => setBackupDateFrom(e.target.value)} style={{ padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 11, width: 58, minWidth: 58, maxWidth: 58, boxSizing: 'border-box' }} />
+              <span style={{ color: '#64748b', fontSize: 11 }}>~</span>
+              <input type="date" value={backupDateTo} onChange={(e) => setBackupDateTo(e.target.value)} style={{ padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 11, width: 58, minWidth: 58, maxWidth: 58, boxSizing: 'border-box' }} />
             </div>
           </div>
         </div>
