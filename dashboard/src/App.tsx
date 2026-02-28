@@ -570,15 +570,19 @@ function useOrders(dateFrom?: string, dateTo?: string, regionFilter?: string, lo
     if (dateFrom && dateFrom.trim()) q = q.gte('date', dateFrom.trim())
     if (dateTo && dateTo.trim()) q = q.lte('date', dateTo.trim())
     if (regionFilter && regionFilter.trim()) {
-      q = q.ilike('region', '%' + regionFilter.trim() + '%')
+      q = q.eq('region', regionFilter.trim())
     }
     if (locationFilter && locationFilter.trim()) {
-      q = q.ilike('location', '%' + locationFilter.trim() + '%')
+      q = q.eq('location', locationFilter.trim())
     }
     const hasFilter = !!(regionFilter?.trim() || locationFilter?.trim())
     if (hasFilter) q = q.limit(10000)
     q.then(({ data, error: e }) => {
-      setError(e?.message ?? null)
+      let errMsg = e?.message ?? null
+      if (errMsg && regionFilter?.trim() && /region.*(does not exist|not found)|(does not exist|not found).*region/i.test(errMsg)) {
+        errMsg = 'orders 테이블에 region(지역) 컬럼이 없습니다. Supabase 대시보드 → SQL Editor에서 dashboard/supabase-orders-add-region.sql 내용을 실행하세요.'
+      }
+      setError(errMsg)
       setOrders((data as Order[]) ?? [])
       setLoading(false)
     })
