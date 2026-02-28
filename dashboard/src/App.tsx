@@ -2617,31 +2617,13 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
             </select>
           )}
           {searchCondition === 'location' && (
-            <div style={{ position: 'relative', minWidth: 220 }}>
-              <input
-                ref={locationInputRef}
-                type="text"
-                value={searchLocation}
-                onChange={(e) => { setSearchLocation(e.target.value); setLocationDropdownOpen(true); }}
-                onFocus={() => setLocationDropdownOpen(true)}
-                onBlur={() => setTimeout(() => setLocationDropdownOpen(false), 150)}
-                placeholder="배송장소 입력 또는 목록에서 선택"
-                style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, width: '100%', minWidth: 220 }}
-              />
-              {locationDropdownOpen && locationSuggestions.length > 0 && (
-                <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, margin: 0, padding: 0, listStyle: 'none', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: 240, overflowY: 'auto' }}>
-                  {locationSuggestions.map((loc) => (
-                    <li
-                      key={loc}
-                      onMouseDown={(e) => { e.preventDefault(); setSearchLocation(loc); setLocationDropdownOpen(false); locationInputRef.current?.blur(); }}
-                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 14, borderBottom: '1px solid #f1f5f9' }}
-                    >
-                      {loc}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <input
+              type="text"
+              value={searchLocation}
+              onChange={(e) => setSearchLocation(e.target.value)}
+              placeholder="배송장소 입력"
+              style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, width: 180, minWidth: 180 }}
+            />
           )}
           {searchCondition === 'region' && (
             <div key="region-only" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
