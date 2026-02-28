@@ -2579,7 +2579,7 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
           </label>
           <button
             type="button"
-            onClick={() => { setAppliedDateFrom(dateFrom); setAppliedDateTo(dateTo); }}
+            onClick={() => { setAppliedDateFrom(dateFrom); setAppliedDateTo(dateTo); setAppliedSearchLocation(searchLocation); setAppliedSearchRegion(searchRegion); }}
             style={{ padding: '8px 20px', background: '#334155', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
           >
             검색
@@ -2587,7 +2587,16 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
           <span style={{ marginLeft: 8, color: '#64748b', fontSize: 14 }}>검색 조건</span>
           <select
             value={searchCondition}
-            onChange={(e) => { setSearchCondition(e.target.value as '' | 'client' | 'location' | 'region'); setSearchClient(''); setSearchLocation(''); setSearchRegion(''); setAppliedSearchLocation(''); setAppliedSearchRegion(''); }}
+            onChange={(e) => {
+              const v = e.target.value as '' | 'client' | 'location' | 'region'
+              setSearchCondition(v)
+              setSearchClient('')
+              setSearchLocation('')
+              setSearchRegion('')
+              setAppliedSearchLocation('')
+              setAppliedSearchRegion('')
+              setLocationDropdownOpen(false)
+            }}
             style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14 }}
           >
             <option value="">없음</option>
@@ -2635,16 +2644,16 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
             </div>
           )}
           {searchCondition === 'region' && (
-            <>
+            <div key="region-only" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <input
                 type="text"
                 value={searchRegion}
                 onChange={(e) => setSearchRegion(e.target.value)}
-                placeholder="지역 입력"
-                style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, width: 100, minWidth: 100 }}
+                placeholder="지역 입력 (예: 강남, 송파)"
+                style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, width: 140, minWidth: 140 }}
               />
-              <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>입력 후 [검색] 클릭</span>
-            </>
+              <span style={{ fontSize: 12, color: '#64748b' }}>입력 후 [검색] 클릭</span>
+            </div>
           )}
           <div style={{ marginLeft: 16, paddingLeft: 16, borderLeft: '1px solid #e2e8f0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ color: '#64748b', fontSize: 14, fontWeight: 600 }}>명세/내역서 내보내기</span>
