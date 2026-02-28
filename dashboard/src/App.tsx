@@ -2313,7 +2313,7 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
                 placeholder="배송장소 (초성 검색 가능)"
                 style={inputStyle}
               />
-              {formLocationDropdownOpen && formLocationSuggestions.length > 0 && (
+              {formLocationDropdownOpen && formLocationSuggestions.length > 0 && searchCondition !== 'region' && (
                 <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, margin: 0, padding: 0, listStyle: 'none', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: 200, overflowY: 'auto' }}>
                   {formLocationSuggestions.map((loc) => (
                     <li
@@ -2596,6 +2596,11 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
               setAppliedSearchLocation('')
               setAppliedSearchRegion('')
               setLocationDropdownOpen(false)
+              setClientDropdownOpen(false)
+              setBranchDropdownOpen(false)
+              setProviderDropdownOpen(false)
+              setFormLocationDropdownOpen(false)
+              setContactClientDropdownOpen(false)
             }}
             style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14 }}
           >
@@ -2626,12 +2631,13 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
             />
           )}
           {searchCondition === 'region' && (
-            <div key="region-only" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div key="region-only" data-search="region" style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', isolation: 'isolate' }}>
               <input
                 type="text"
                 value={searchRegion}
                 onChange={(e) => setSearchRegion(e.target.value)}
-                placeholder="지역 입력 (예: 강남, 송파)"
+                placeholder="지역만 입력 (드롭다운 없음)"
+                autoComplete="off"
                 style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, width: 140, minWidth: 140 }}
               />
               <span style={{ fontSize: 12, color: '#64748b' }}>입력 후 [검색] 클릭</span>
