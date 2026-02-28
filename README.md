@@ -1,5 +1,7 @@
 # 성원플라워 관리 대시보드
 
+**최종 자료 업데이트:** 어제 회사에서 대량 수정 후 배포 완료.
+
 ## 1. DB 설계 및 생성 (Supabase)
 
 1. [Supabase](https://supabase.com) 프로젝트에서 **SQL Editor** 열기

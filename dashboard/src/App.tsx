@@ -545,7 +545,10 @@ function parseCsvToOrders(csvText: string): CsvOrderRow[] {
   return rows
 }
 
-function useOrders(dateFrom?: string, dateTo?: string) {
+const NO_REGION_SENTINEL = '__no_region__' as const
+const NO_LOCATION_SENTINEL = '__no_location__' as const
+
+function useOrders(dateFrom?: string, dateTo?: string, regionFilter?: string, locationFilter?: string) {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -557,15 +560,29 @@ function useOrders(dateFrom?: string, dateTo?: string) {
       setLoading(false)
       return
     }
+    if (regionFilter === NO_REGION_SENTINEL || locationFilter === NO_LOCATION_SENTINEL) {
+      setOrders([])
+      setError(null)
+      setLoading(false)
+      return
+    }
     let q = supabase.from('orders').select('*').order('date', { ascending: true })
-    if (dateFrom) q = q.gte('date', dateFrom)
-    if (dateTo) q = q.lte('date', dateTo)
+    if (dateFrom && dateFrom.trim()) q = q.gte('date', dateFrom.trim())
+    if (dateTo && dateTo.trim()) q = q.lte('date', dateTo.trim())
+    if (regionFilter && regionFilter.trim()) {
+      q = q.ilike('region', '%' + regionFilter.trim().replace(/%/g, '\\%') + '%')
+    }
+    if (locationFilter && locationFilter.trim()) {
+      q = q.ilike('location', '%' + locationFilter.trim().replace(/%/g, '\\%') + '%')
+    }
+    const hasFilter = !!(regionFilter?.trim() || locationFilter?.trim())
+    if (hasFilter) q = q.limit(10000)
     q.then(({ data, error: e }) => {
       setError(e?.message ?? null)
       setOrders((data as Order[]) ?? [])
       setLoading(false)
     })
-  }, [dateFrom, dateTo, refreshTrigger])
+  }, [dateFrom, dateTo, regionFilter, locationFilter, refreshTrigger])
 
   const refetch = () => setRefreshTrigger((t) => t + 1)
   return { orders, loading, error, refetch }
@@ -1022,9 +1039,11 @@ export default function App() {
   const [statementExportLoading, setStatementExportLoading] = useState(false)
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0)
   // 지역·배송장소 검색 시에는 날짜 조건 없이 전체 조회
-  const ordersDateFrom = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateFrom || undefined)
-  const ordersDateTo = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateTo || undefined)
-  const { orders, loading: ordersLoading, error, refetch } = useOrders(ordersDateFrom, ordersDateTo)
+  const ordersDateFrom = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateFrom?.trim() || undefined)
+  const ordersDateTo = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateTo?.trim() || undefined)
+  const ordersRegionFilter = searchCondition === 'region' ? (searchRegion.trim() || NO_REGION_SENTINEL) : undefined
+  const ordersLocationFilter = searchCondition === 'location' ? (searchLocation.trim() || NO_LOCATION_SENTINEL) : undefined
+  const { orders, loading: ordersLoading, error, refetch } = useOrders(ordersDateFrom, ordersDateTo, ordersRegionFilter, ordersLocationFilter)
   const allLocationsList = useAllLocationsList()
   const clientList = useClientList()
   const generalFormatClients = useMemo(() => filterGeneralFormatClients(clientList), [clientList])
@@ -1036,13 +1055,11 @@ export default function App() {
   const [providerDropdownOpen, setProviderDropdownOpen] = useState(false)
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false)
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false)
-  const [regionDropdownOpen, setRegionDropdownOpen] = useState(false)
   const [formLocationDropdownOpen, setFormLocationDropdownOpen] = useState(false)
   const clientInputRef = useRef<HTMLInputElement>(null)
   const providerInputRef = useRef<HTMLInputElement>(null)
   const branchInputRef = useRef<HTMLInputElement>(null)
   const locationInputRef = useRef<HTMLInputElement>(null)
-  const regionInputRef = useRef<HTMLInputElement>(null)
   const formLocationInputRef = useRef<HTMLInputElement>(null)
   const contactClientInputRef = useRef<HTMLInputElement>(null)
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
@@ -1571,25 +1588,14 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
     ).slice(0, 50)
   }, [form.location, allLocationsList])
 
-  const regionList = useMemo(() => {
-    const list = [...new Set(orders.map((o) => o.region).filter(Boolean))] as string[]
-    return list.sort()
-  }, [orders])
-
-  const regionSuggestions = useMemo(() => {
-    const q = searchRegion.trim().toLowerCase()
-    if (!q) return regionList.slice(0, 50)
-    return regionList.filter((r) => r.toLowerCase().includes(q)).slice(0, 50)
-  }, [searchRegion, regionList])
-
   const filteredOrders = useMemo(() => {
     let list = orders
     if (searchCondition === 'client' && searchClient.trim()) {
       list = orders.filter((o) => (o.client ?? '').trim() === searchClient.trim())
-    } else if (searchCondition === 'location' && searchLocation.trim()) {
-      list = orders.filter((o) => (o.location ?? '').trim() === searchLocation.trim())
-    } else if (searchCondition === 'region' && searchRegion.trim()) {
-      list = orders.filter((o) => (o.region ?? '').trim() === searchRegion.trim())
+    }
+    // 배송장소·지역은 useOrders에서 이미 DB로 필터링됨. 지역만 표시용으로 trim 일치로 한 번 더 걸기
+    if (searchCondition === 'region' && searchRegion.trim()) {
+      list = orders.filter((o) => (o.region ?? '').trim().toLowerCase().includes(searchRegion.trim().toLowerCase()))
     }
     // 최근(배송일·등록순)이 맨 위로
     return [...list].sort((a, b) => {
@@ -2626,31 +2632,13 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
             </div>
           )}
           {searchCondition === 'region' && (
-            <div style={{ position: 'relative', minWidth: 220 }}>
-              <input
-                ref={regionInputRef}
-                type="text"
-                value={searchRegion}
-                onChange={(e) => { setSearchRegion(e.target.value); setRegionDropdownOpen(true); }}
-                onFocus={() => setRegionDropdownOpen(true)}
-                onBlur={() => setTimeout(() => setRegionDropdownOpen(false), 150)}
-                placeholder="지역 입력 또는 목록에서 선택"
-                style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, width: '100%', minWidth: 220 }}
-              />
-              {regionDropdownOpen && regionSuggestions.length > 0 && (
-                <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, margin: 0, padding: 0, listStyle: 'none', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: 240, overflowY: 'auto' }}>
-                  {regionSuggestions.map((r) => (
-                    <li
-                      key={r}
-                      onMouseDown={(e) => { e.preventDefault(); setSearchRegion(r); setRegionDropdownOpen(false); regionInputRef.current?.blur(); }}
-                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 14, borderBottom: '1px solid #f1f5f9' }}
-                    >
-                      {r}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <input
+              type="text"
+              value={searchRegion}
+              onChange={(e) => setSearchRegion(e.target.value)}
+              placeholder="지역 입력"
+              style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, width: 120, minWidth: 120 }}
+            />
           )}
           <div style={{ marginLeft: 16, paddingLeft: 16, borderLeft: '1px solid #e2e8f0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ color: '#64748b', fontSize: 14, fontWeight: 600 }}>명세/내역서 내보내기</span>

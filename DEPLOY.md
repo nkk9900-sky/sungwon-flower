@@ -1,5 +1,7 @@
 # GitHub + Vercel 배포 방법
 
+**최종 배포/자료 업데이트:** 어제 회사에서 수정 후 배포 완료.
+
 ## 1. GitHub 저장소 만들기
 
 1. [GitHub](https://github.com) 로그인 후 **New repository** 클릭
