@@ -570,10 +570,10 @@ function useOrders(dateFrom?: string, dateTo?: string, regionFilter?: string, lo
     if (dateFrom && dateFrom.trim()) q = q.gte('date', dateFrom.trim())
     if (dateTo && dateTo.trim()) q = q.lte('date', dateTo.trim())
     if (regionFilter && regionFilter.trim()) {
-      q = q.ilike('region', '%' + regionFilter.trim().replace(/%/g, '\\%') + '%')
+      q = q.ilike('region', '%' + regionFilter.trim() + '%')
     }
     if (locationFilter && locationFilter.trim()) {
-      q = q.ilike('location', '%' + locationFilter.trim().replace(/%/g, '\\%') + '%')
+      q = q.ilike('location', '%' + locationFilter.trim() + '%')
     }
     const hasFilter = !!(regionFilter?.trim() || locationFilter?.trim())
     if (hasFilter) q = q.limit(10000)
@@ -998,6 +998,8 @@ export default function App() {
   const [searchClient, setSearchClient] = useState('')
   const [searchLocation, setSearchLocation] = useState('')
   const [searchRegion, setSearchRegion] = useState('')
+  const [appliedSearchLocation, setAppliedSearchLocation] = useState('')
+  const [appliedSearchRegion, setAppliedSearchRegion] = useState('')
   const [form, setForm] = useState(() => ({ ...emptyForm, date: getTodayISO() }))
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'saving' | 'ok' | 'error'>('idle')
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -1041,8 +1043,8 @@ export default function App() {
   // 지역·배송장소 검색 시에는 날짜 조건 없이 전체 조회
   const ordersDateFrom = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateFrom?.trim() || undefined)
   const ordersDateTo = (searchCondition === 'location' || searchCondition === 'region') ? undefined : (appliedDateTo?.trim() || undefined)
-  const ordersRegionFilter = searchCondition === 'region' ? (searchRegion.trim() || NO_REGION_SENTINEL) : undefined
-  const ordersLocationFilter = searchCondition === 'location' ? (searchLocation.trim() || NO_LOCATION_SENTINEL) : undefined
+  const ordersRegionFilter = searchCondition === 'region' ? (appliedSearchRegion.trim() || NO_REGION_SENTINEL) : undefined
+  const ordersLocationFilter = searchCondition === 'location' ? (appliedSearchLocation.trim() || NO_LOCATION_SENTINEL) : undefined
   const { orders, loading: ordersLoading, error, refetch } = useOrders(ordersDateFrom, ordersDateTo, ordersRegionFilter, ordersLocationFilter)
   const allLocationsList = useAllLocationsList()
   const clientList = useClientList()
@@ -1593,10 +1595,7 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
     if (searchCondition === 'client' && searchClient.trim()) {
       list = orders.filter((o) => (o.client ?? '').trim() === searchClient.trim())
     }
-    // 배송장소·지역은 useOrders에서 이미 DB로 필터링됨. 지역만 표시용으로 trim 일치로 한 번 더 걸기
-    if (searchCondition === 'region' && searchRegion.trim()) {
-      list = orders.filter((o) => (o.region ?? '').trim().toLowerCase().includes(searchRegion.trim().toLowerCase()))
-    }
+    // 배송장소·지역은 useOrders에서 이미 DB로 필터링됨. 추가 필터 없음
     // 최근(배송일·등록순)이 맨 위로
     return [...list].sort((a, b) => {
       const byDate = (b.date || '').localeCompare(a.date || '')
@@ -2584,7 +2583,7 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
           <span style={{ marginLeft: 8, color: '#64748b', fontSize: 14 }}>검색 조건</span>
           <select
             value={searchCondition}
-            onChange={(e) => { setSearchCondition(e.target.value as '' | 'client' | 'location' | 'region'); setSearchClient(''); setSearchLocation(''); setSearchRegion(''); }}
+            onChange={(e) => { setSearchCondition(e.target.value as '' | 'client' | 'location' | 'region'); setSearchClient(''); setSearchLocation(''); setSearchRegion(''); setAppliedSearchLocation(''); setAppliedSearchRegion(''); }}
             style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14 }}
           >
             <option value="">없음</option>
@@ -2632,13 +2631,16 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
             </div>
           )}
           {searchCondition === 'region' && (
-            <input
-              type="text"
-              value={searchRegion}
-              onChange={(e) => setSearchRegion(e.target.value)}
-              placeholder="지역 입력"
-              style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, width: 120, minWidth: 120 }}
-            />
+            <>
+              <input
+                type="text"
+                value={searchRegion}
+                onChange={(e) => setSearchRegion(e.target.value)}
+                placeholder="지역 입력"
+                style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, width: 100, minWidth: 100 }}
+              />
+              <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>입력 후 [검색] 클릭</span>
+            </>
           )}
           <div style={{ marginLeft: 16, paddingLeft: 16, borderLeft: '1px solid #e2e8f0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ color: '#64748b', fontSize: 14, fontWeight: 600 }}>명세/내역서 내보내기</span>
@@ -2674,9 +2676,9 @@ supabase.from('orders').select('*').eq('client', '노랑풍선').gte('date', dat
                 거래처 「{searchClient}」 주문 목록
               </p>
             )}
-            {searchCondition === 'region' && searchRegion.trim() && (
+            {searchCondition === 'region' && appliedSearchRegion.trim() && (
               <p style={{ padding: '10px 16px', margin: 0, background: '#f0fdf4', borderBottom: '1px solid #bbf7d0', fontSize: 13, fontWeight: 600, color: '#166534' }}>
-                지역 「{searchRegion}」 주문 목록
+                지역 「{appliedSearchRegion}」 주문 목록
               </p>
             )}
             <p style={{ padding: '10px 16px', margin: 0, background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', fontSize: 12, color: '#475569' }}>
